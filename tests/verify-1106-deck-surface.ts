@@ -806,7 +806,7 @@ async function main() {
     // issue-list-session.ts（issue-list.ts 撞回 350 行上限）：不是独立工具，同样住工具层、同样进这张精确名单。
     // B1（scope=session）又把会话视图整支搬成 issue-list-session.ts（issue-list.ts 收薄）；它同样住在工具层、
     // 同样受下面这套扫描约束，进这张精确名单。
-    const EXPECTED_FILES = ['context.ts', 'issue-list-session.ts', 'issue-create-failure.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list-session.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create-failure.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session-adapt.ts', 'tracker-session.ts', 'work-route.ts'].sort()
+    const EXPECTED_FILES = ['context.ts', 'issue-create-failure.ts', 'issue-create-parts.ts', 'issue-create.ts', 'issue-get.ts', 'issue-list-session.ts', 'issue-list.ts', 'issue-patch-definition.ts', 'issue-patch.ts', 'issue-report.ts', 'map-link.ts', 'map-plan-create-failure.ts', 'map-plan-create.ts', 'map-plan-readback.ts', 'map-plan-resume.ts', 'map-snapshot.ts', 'md-scope.ts', 'suggest-next-steps.ts', 'tool-order.ts', 'tracker-session-adapt.ts', 'tracker-session.ts', 'work-route.ts'].sort()
     check(names.join(',') === EXPECTED_FILES.join(','), '工具层是十份工具 + 顺序表门面 + 三个内部模块 + 建议工具 + 会话接线层 + 会话适配壳 + md-scope + 工具定义 + 建票失败回执 + 建图失败回执 这二十二份（实际 ' + names.join(',') + '）')
     const bad: string[] = []
     let sawClock = 0
