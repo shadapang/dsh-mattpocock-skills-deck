@@ -70,6 +70,8 @@
     "seed-1460-dedup-drill.ts",
     "star-history.mts",
     "sync-matt-skills.mts",
+    // 上游合并流程（W2-02）：一轮 sync 分支 + 三步验证 + profile 冒烟，见仓根 UPSTREAM.md。
+    "sync-upstream.mts",
     "t3-extract.mts",
     "ts-hook.mts",
     "ui-align-black-panel.mts",

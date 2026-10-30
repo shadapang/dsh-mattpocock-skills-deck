@@ -160,6 +160,10 @@ declare module 'node:fs' {
   export function mkdirSync(path: any, ...args: any[]): any
   export function existsSync(path: any): boolean
   export function rmSync(path: any, ...args: any[]): void
+  /** 只问「这个路径本身是什么」（不跟链接走）：同步脚本据此判断 profile 里的插件目录是真目录还是 junction，别删到目标里去。 */
+  export function lstatSync(path: any, ...args: any[]): any
+  /** 摘掉一个文件或一个链接本身（不递归）：摘 junction 只能用它，rmSync 会顺着链接走。 */
+  export function unlinkSync(path: any): void
   /** 改名（同盘原子操作）：构建锁拿它把旧锁改名再接管，改名只会成功一家，不会有两家同时建成。 */
   export function renameSync(oldPath: any, newPath: any): void
   export function cpSync(src: any, dest: any, ...args: any[]): void
