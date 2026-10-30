@@ -18,6 +18,9 @@ import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
 // #1277：类型没标对的规格票靠票面文件头标记兜底认出来（与宿主快照组装层同一口径）。
 import { isSpecHeaderMarked } from '../../shared/issue-file/src/marker.js'
+// scope=session 那一块（票键归一、目录比对、只读账页取数）单列一份，理由见该文件头（350 有效行上限）。
+import { SESSION_SCOPE_NOTE, hitSessionTicket, readSessionTickets } from './issue-list-session.js'
+import type { SessionTicketHit } from './issue-list-session.js'
 
 /**
  * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -30,6 +33,9 @@ export interface DeckIssueListDeps {
   sandboxPolicyFor?: (arg: { cwd: string | undefined; sessionId: string | undefined }) => Promise<unknown>
   /** 时钟旁路：测试里换成假时钟用，缺省 Date.now。 */
   now?: () => number
+  /** 本会话碰过的票（scope=session 用）：只读本机工作路线账页，回 { ok:true, tickets:[{ticketKey, effortId}] }
+   *  或 { ok:false, reason }。装配层没接上时缺席 —— 那时 scope=session 如实说取不到，不拿空名单冒充。 */
+  workRouteTickets?: (arg: { rootKey: string; sessionId: string }) => Promise<unknown>
 }
 
 /** 工具定义（唯一事实）：路由、参数名与给 AI 看的那句话都从这里出，别在别处再抄一份。 */
@@ -44,6 +50,7 @@ export const definition = {
       labels: { type: 'array', items: { type: 'string' }, description: '必须同时带上这些 label（AND），缺省不过滤' },
       assignee: { type: 'string', description: '只留认领含此人的行，缺省不过滤' },
       query: { type: 'string', description: '标题与正文的子串过滤，缺省不过滤' },
+      scope: { type: 'string', enum: ['all', 'session'], description: '范围，缺省 all：all 看整个工作区；session 只看本会话碰过的票（建票、改票含认领、建图、挂边算碰过；只上报与只读取不算）' },
       limit: { type: 'number', description: '最多回几行，缺省 50，上限 200' },
       ...MD_SCOPE_LOCATE,
     },
@@ -216,12 +223,24 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
     const wantLabels = (Array.isArray(a.labels) ? a.labels : []).map((x) => String(x).trim()).filter(Boolean)
     const wantAssignee = String(a.assignee === undefined || a.assignee === null ? '' : a.assignee).trim().toLowerCase()
     const wantQuery = String(a.query === undefined || a.query === null ? '' : a.query).trim().toLowerCase()
+    // scope 只有两档：认不出的一律按 all（与 state / type 几处同一口径：退到缺省那一档，不替调用方猜第三种意思）。
+    const rawScope = String(a.scope === undefined || a.scope === null ? 'all' : a.scope).trim().toLowerCase()
+    const scopeMode = rawScope === 'session' ? 'session' : 'all'
     const limit = Math.max(1, Math.min(200, Number(a.limit) > 0 ? Math.floor(Number(a.limit)) : 50))
     const est = shell.estimateFor('deck_issue_list', a)
     const s = await sessionContextOfAsync(exec, { canonicalKey: d.canonicalKey, workspaceKeyOf: d.workspaceKeyOf })
     // 会话没解析出来时回的是「为什么」那一支。编译器分不出两支（ok 在会话壳里是运行时布尔，
     // 那一层还没标类型，见 #1040），所以这里按形状取 reason —— 取到的值与老写法逐字相同。
     if (!s.ok) return shell.unsupported('deck_issue_list', (s as { reason: string }).reason, s.text, { cost: { estimated: est } })
+
+    // scope=session：先只读本机工作路线账页拿「本会话碰过的票」，再与列表求交（下面两条路都用这一份）。
+    // 纯读 —— 不写账页、不碰任何票文件；账页只认写类事件，list/get 本来就不入账。
+    let sessionHits: SessionTicketHit[] | null = null
+    if (scopeMode === 'session') {
+      const got = await readSessionTickets(d.workRouteTickets, s.sessionId, s.workspaceKey)
+      if (!got.ok) return shell.unsupported('deck_issue_list', got.reason, got.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
+      sessionHits = got.tickets
+    }
 
     const pick = await openDeckSession({ deps: d, exec: exec, session: s, estimate: est, tool: 'deck_issue_list', kind: 'read' })
     if (!pick.ok) return shell.unsupported('deck_issue_list', pick.reason, pick.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
@@ -270,7 +289,9 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
             }
           }
           const thinRows = (thinBody.data && Array.isArray(thinBody.data.rows)) ? thinBody.data.rows : []
-          const mapped = thinMapRowsToIssues(thinRows as ThinMapRow[], { state: state })
+          const mappedAll = thinMapRowsToIssues(thinRows as ThinMapRow[], { state: state })
+          // 薄行没有目录格（effortId 恒空串），所以会话视图在薄查这条路上只按票键求交。
+          const mapped = sessionHits ? mappedAll.filter((r) => hitSessionTicket(r, sessionHits as SessionTicketHit[])) : mappedAll
           const thinTotal = mapped.length
           const thinSliced = mapped.slice(0, limit)
           const thinTruncated = thinTotal > thinSliced.length
@@ -278,7 +299,9 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
           thinCond.push('state=' + state)
           if (type !== 'all') thinCond.push('type=' + type)
           if (wantLabels.length) thinCond.push('label=' + wantLabels.join('&'))
+          if (scopeMode === 'session') thinCond.push('scope=session')
           const thinNotes = ['这次走地图薄查快速回（只筛地图标签，不读正文）。']
+          if (scopeMode === 'session') thinNotes.push(SESSION_SCOPE_NOTE)
           if (thinBody.data && thinBody.data.truncated === true) thinNotes.push('地图只取回了前 ' + mapped.length + ' 张（共 ' + String(thinBody.data.total) + ' 张，撞到封顶页数），剩下的这次没拿。')
           if (thinTruncated) thinNotes.push('只回前 ' + thinSliced.length + ' 行（共 ' + thinTotal + ' 行符合）：收窄过滤或调大 limit 再取一次。')
           const thinRawUsage: unknown = (thin as { usage?: unknown }).usage
@@ -363,8 +386,9 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
           parentKey: issue.parentKey !== undefined ? issue.parentKey : null,
         })
       }
-      const total = matched.length
-      const sliced = matched.slice(0, limit)
+      const kept = sessionHits ? matched.filter((r) => hitSessionTicket(r, sessionHits as SessionTicketHit[])) : matched
+      const total = kept.length
+      const sliced = kept.slice(0, limit)
       const truncated = total > sliced.length
       const cond = []
       cond.push('state=' + state)
@@ -372,7 +396,9 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
       if (wantLabels.length) cond.push('label=' + wantLabels.join('&'))
       if (wantAssignee) cond.push('assignee=' + String(a.assignee).trim())
       if (wantQuery) cond.push('query=' + String(a.query).trim().slice(0, 40))
+      if (scopeMode === 'session') cond.push('scope=session')
       const notes = []
+      if (scopeMode === 'session') notes.push(SESSION_SCOPE_NOTE)
       if (scope.effortId) notes.push(mdScopeNote(scope.scene, scope.effortId))
       if (backendFallback) {
         // 配额耗尽与其它失败分开说：前者等额度恢复，后者按 opId 去日志里查 read.degraded 同一趟的原因。
