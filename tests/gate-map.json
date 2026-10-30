@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-29T16:32:20.891Z",
+  "generatedAt": "2026-10-30T09:30:02.221Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 455,
-  "gateCount": 455,
-  "attributedGates": 406,
+  "chainLength": 456,
+  "gateCount": 456,
+  "attributedGates": 407,
   "unattributedGates": 49,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 26,
@@ -836,7 +836,6 @@
       "guards": [
         "docs/agents/verification.md",
         "package/lib/client.js",
-        "research/489-appendix.md",
         "scripts/build.mts",
         "scripts/gate-map.mts",
         "scripts/lib/select-gates.mts",
@@ -855,7 +854,6 @@
       "dirs": [
         "docs/agents",
         "package/lib",
-        "research",
         "scripts",
         "scripts/lib",
         "src",
@@ -871,7 +869,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 3 条；源码里的路径字面量 12 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；静态 import 说明符 3 条；源码里的路径字面量 11 条"
     },
     {
       "step": "node tests/verify-no-mixed-session.ts",
@@ -4637,7 +4635,6 @@
       "step": "node tests/verify-1642-toggle-logs.ts",
       "file": "tests/verify-1642-toggle-logs.ts",
       "guards": [
-        "research/489-appendix.md",
         "src/client/kernel/settings-view-state.ts",
         "src/client/kernel/settings-view-write.ts",
         "src/client/kernel/settings-view.ts",
@@ -4652,7 +4649,6 @@
         "tests/verify-log-fields.ts"
       ],
       "dirs": [
-        "research",
         "src/client/kernel",
         "src/host",
         "src/shared",
@@ -4664,7 +4660,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 54,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 7 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 2 条；载入模块（require / import / pathToFileURL） 4 条；源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-1646-publish-token-file.ts",
@@ -5922,18 +5918,16 @@
       "step": "node tests/verify-733-unknown-endpoint.ts",
       "file": "tests/verify-733-unknown-endpoint.ts",
       "guards": [
-        "research/489-appendix.md",
         "src/host/rpcChannel.ts"
       ],
       "dirs": [
-        "research",
         "src/host"
       ],
       "unattributed": false,
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条"
     },
     {
       "step": "node tests/verify-763-detail-fold.ts",
@@ -7641,7 +7635,6 @@
       "step": "node tests/verify-error-normalize-log.ts",
       "file": "tests/verify-error-normalize-log.ts",
       "guards": [
-        "research/489-appendix.md",
         "src/tracker/detection/detectionService.ts",
         "src/tracker/kernel/error-rules.ts",
         "src/tracker/kernel/preflight.ts",
@@ -7650,7 +7643,6 @@
         "src/tracker/rooms/markdown"
       ],
       "dirs": [
-        "research",
         "src/tracker/detection",
         "src/tracker/kernel",
         "src/tracker/rooms/github",
@@ -7661,7 +7653,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：源码里的路径字面量 7 条"
+      "reason": "归属来自：源码里的路径字面量 6 条"
     },
     {
       "step": "node tests/verify-error-raw-samples.ts",
@@ -8453,7 +8445,6 @@
       "step": "node tests/verify-log-count.ts",
       "file": "tests/verify-log-count.ts",
       "guards": [
-        "research/489-appendix.md",
         "src/client",
         "src/deck",
         "src/host",
@@ -8461,7 +8452,6 @@
         "src/tracker"
       ],
       "dirs": [
-        "research",
         "src/client",
         "src/deck",
         "src/host",
@@ -8472,7 +8462,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 6 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条"
     },
     {
       "step": "node tests/verify-log-exec-606.ts",
@@ -8538,14 +8528,12 @@
       "step": "node tests/verify-log-selfmon.ts",
       "file": "tests/verify-log-selfmon.ts",
       "guards": [
-        "research/489-appendix.md",
         "scripts/lib/discover-gates.ts",
         "tests/lib/gate-result.ts",
         "tests/lib/time-compress.ts",
         "tests/verify-log-selfmon.ts"
       ],
       "dirs": [
-        "research",
         "scripts/lib",
         "tests",
         "tests/lib"
@@ -8554,7 +8542,7 @@
       "buildOutputOnly": false,
       "completionRecord": true,
       "expectedAssertions": 27,
-      "reason": "读到的路径都落在 research、scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
+      "reason": "读到的路径都落在 scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-log-statusbar.ts",
@@ -8687,6 +8675,7 @@
       "step": "node tests/verify-markdown-backend.ts",
       "file": "tests/verify-markdown-backend.ts",
       "guards": [
+        "src/tracker/deck-derive.ts",
         "src/tracker/rooms/markdown/comments.ts",
         "src/tracker/rooms/markdown/counts.ts",
         "src/tracker/rooms/markdown/index.ts",
@@ -8704,6 +8693,7 @@
         "tests/tracker-contract/harness.ts"
       ],
       "dirs": [
+        "src/tracker",
         "src/tracker/rooms/markdown",
         "tests/fixtures/markdown-sample",
         "tests/tracker-contract",
@@ -8713,7 +8703,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：载入模块（require / import / pathToFileURL） 9 条；静态 import 说明符 5 条；源码里的路径字面量 1 条"
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 10 条；静态 import 说明符 5 条；源码里的路径字面量 1 条"
     },
     {
       "step": "node tests/verify-markdown-label-colors.ts",
@@ -9321,22 +9311,20 @@
         "package/lib/client.js",
         "package/package.json",
         "scripts/create-release-issue.mts",
-        "scripts/wizard-release.sh",
-        "wizard/template.sh"
+        "scripts/wizard-release.sh"
       ],
       "dirs": [
         "docs",
         "docs/releases",
         "package",
         "package/lib",
-        "scripts",
-        "wizard"
+        "scripts"
       ],
       "unattributed": true,
       "buildOutputOnly": true,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "读到的路径都落在 docs、package、scripts、wizard/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
+      "reason": "读到的路径都落在 docs、package、scripts/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
       "step": "node tests/verify-release-template.ts",
@@ -9457,6 +9445,35 @@
       "reason": "归属来自：源码里的路径字面量 15 条"
     },
     {
+      "step": "node tests/verify-scope-session.ts",
+      "file": "tests/verify-scope-session.ts",
+      "guards": [
+        "src/deck/shell/work-path-bindings.ts",
+        "src/deck/tools/issue-list.ts",
+        "src/refresh/kernel/host-budget.ts",
+        "src/refresh/kernel/tool-call-budget.ts",
+        "src/refresh/rooms/host/quota-ledger.ts",
+        "src/refresh/rooms/host/refresh-gate.ts",
+        "src/tracker/registry/core.ts",
+        "src/tracker/rooms/markdown/index.ts",
+        "tests/lib/deck-decide-stub.ts"
+      ],
+      "dirs": [
+        "src/deck/shell",
+        "src/deck/tools",
+        "src/refresh/kernel",
+        "src/refresh/rooms/host",
+        "src/tracker/registry",
+        "src/tracker/rooms/markdown",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：载入模块（require / import / pathToFileURL） 1 条；源码里的路径字面量 8 条"
+    },
+    {
       "step": "node tests/verify-session-title.ts",
       "file": "tests/verify-session-title.ts",
       "guards": [
@@ -9480,7 +9497,6 @@
       "file": "tests/verify-settings-debug.ts",
       "guards": [
         "package/lib/client.js",
-        "research/489-appendix.md",
         "scripts/build.mts",
         "scripts/generated/logKernel.derived.js",
         "scripts/lib/discover-gates.ts",
@@ -9504,7 +9520,6 @@
       ],
       "dirs": [
         "package/lib",
-        "research",
         "scripts",
         "scripts/generated",
         "scripts/lib",
@@ -9521,7 +9536,7 @@
       "buildOutputOnly": false,
       "completionRecord": false,
       "expectedAssertions": 0,
-      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 13 条"
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 5 条；载入模块（require / import / pathToFileURL） 6 条；源码里的路径字面量 12 条"
     },
     {
       "step": "node tests/verify-settings-phones.ts",
@@ -10901,15 +10916,6 @@
     "package/tracker/contract": [
       "node tests/verify-labels-sync.ts"
     ],
-    "research": [
-      "node tests/verify-gate-map.ts",
-      "node tests/verify-1642-toggle-logs.ts",
-      "node tests/verify-733-unknown-endpoint.ts",
-      "node tests/verify-error-normalize-log.ts",
-      "node tests/verify-log-count.ts",
-      "node tests/verify-log-selfmon.ts",
-      "node tests/verify-settings-debug.ts"
-    ],
     "scripts": [
       "node tests/verify-1207-splice-ts.ts",
       "node tests/verify-build-cwd-products.ts",
@@ -11462,6 +11468,7 @@
       "node tests/verify-947-workspace-file.ts",
       "node tests/verify-957-workspace-writer.ts",
       "node tests/verify-golden-receipts.ts",
+      "node tests/verify-scope-session.ts",
       "node tests/verify-time-config.ts"
     ],
     "src/deck/tools": [
@@ -11515,6 +11522,7 @@
       "node tests/verify-992-readonly-labels.ts",
       "node tests/verify-detection-log-reach.ts",
       "node tests/verify-golden-receipts.ts",
+      "node tests/verify-scope-session.ts",
       "node tests/verify-suggest-next-steps.ts",
       "node tests/verify-time-config.ts"
     ],
@@ -11742,6 +11750,7 @@
       "node tests/verify-log-fields.ts",
       "node tests/verify-policy.ts",
       "node tests/verify-refresh-adr.ts",
+      "node tests/verify-scope-session.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-tracker-session.ts",
       "node tests/verify-visible-truth.ts",
@@ -11910,6 +11919,7 @@
       "node tests/verify-refresh-adr.ts",
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-reply-envelope-parity.ts",
+      "node tests/verify-scope-session.ts",
       "node tests/verify-snapshot-cache-first.ts",
       "node tests/verify-suggest-next-steps.ts",
       "node tests/verify-t1-getrepokey.ts",
@@ -12078,6 +12088,7 @@
       "node tests/verify-labels-sync.ts",
       "node tests/verify-log-count.ts",
       "node tests/verify-log-fields.ts",
+      "node tests/verify-markdown-backend.ts",
       "node tests/verify-parse-leaf.ts",
       "node tests/verify-progress.ts",
       "node tests/verify-setup-describe.ts",
@@ -12187,6 +12198,7 @@
       "node tests/verify-golden-receipts.ts",
       "node tests/verify-issue297.ts",
       "node tests/verify-refresh-workspace-key.ts",
+      "node tests/verify-scope-session.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-tracker-contract.ts",
       "node tests/verify-tracker-session.ts"
@@ -12352,6 +12364,7 @@
       "node tests/verify-multi-effort-panel.ts",
       "node tests/verify-multi-effort.ts",
       "node tests/verify-refresh-workspace-key.ts",
+      "node tests/verify-scope-session.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-tracker-session.ts"
     ],
@@ -12577,6 +12590,7 @@
       "node tests/verify-refresh-workspace-key.ts",
       "node tests/verify-rest-fallback-banner.ts",
       "node tests/verify-rest-fallback-reason.ts",
+      "node tests/verify-scope-session.ts",
       "node tests/verify-session-title.ts",
       "node tests/verify-settings-debug.ts",
       "node tests/verify-settings-templates.ts",
@@ -12608,9 +12622,6 @@
     "tests/tracker-contract/sections": [
       "node tests/verify-github-label-colors.ts",
       "node tests/verify-tracker-contract.ts"
-    ],
-    "wizard": [
-      "node tests/verify-release-contract.ts"
     ]
   },
   "coverage": {

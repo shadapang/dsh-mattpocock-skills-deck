@@ -382,6 +382,8 @@ export function createDeckToolBridge(deps: any): any {
           // 会话标题快照由宿主侧填（与 titleFactOf 同一条取法；取不到留空，读出口显示散列前 6 位）。
           workRouteNote: function (input: any): any { try { const enriched: any = (input && typeof input === 'object') ? Object.assign({}, input) : {}; if (!enriched.sessionLabel) { const t = sessionTitleSnapshotOf(enriched.sessionId); if (t) enriched.sessionLabel = t } return workRouteBindings ? workRouteBindings.note(enriched) : Promise.resolve({ ok: false, reason: 'no-store' }) } catch (e: any) { return Promise.resolve({ ok: false, reason: 'threw' }) } },
           workRouteRead: function (input: any): any { try { return workRouteBindings ? workRouteBindings.read(input) : { ok: false, reason: 'no-store' } } catch (e: any) { return { ok: false, reason: 'read-failed' } } },
+          // 本会话碰过的票（只读账页原文，给 deck_issue_list 的 scope=session 用；与在办表同一份存档、同一把工作区键）。
+          workRouteTickets: function (input: any): any { try { return workRouteBindings ? workRouteBindings.tickets(input) : { ok: false, reason: 'no-store' } } catch (e: any) { return { ok: false, reason: 'read-failed' } } },
           // #1086：释放（带 release=true 的上报）走这一支；装配失败时回没释放的诚实原因，由回执备注如实写出。
           workRouteRelease: function (input: any): any { try { return workRouteBindings ? workRouteBindings.release(input) : Promise.resolve({ ok: false, reason: 'no-store' }) } catch (e: any) { return Promise.resolve({ ok: false, reason: 'threw' }) } },
           hourUsage: function (): any { try { return ledger.hourOf('ai-tool') || {} } catch (e: any) { return {} } },
