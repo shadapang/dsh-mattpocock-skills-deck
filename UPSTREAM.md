@@ -109,6 +109,14 @@ node scripts/sync-upstream.mts --from <ref|sha|本地仓目录>
 git checkout main && git merge --ff-only sync/<日期>
 ```
 
+### 演练记录
+
+| 日期 | 怎么跑的 | 结果 |
+|---|---|---|
+| 2026-10-30 | `node scripts/sync-upstream.mts --from main`（本机还没有上游 ref，这轮合的是自己，只走流程与三步验证） | ACCEPT：三步全过；真实的 `desktop` profile 装了一份这次构建的产物，装前备份在 `E:\repos\_wt\w2-evidence\profile-backup-20261030-164547`；`main` 前后都是 `a010c5af0bc3` |
+
+同一台机器上的 `node scripts/sync-upstream.mts --self-test` 也跑过：20 条断言全过（三步全过 → ACCEPT；上游改坏源码 → 构建失败 → REJECT 且 main 不动；装完把包弄坏 → 冒烟失败 → profile 回滚）。
+
 ### 自测
 
 ```
