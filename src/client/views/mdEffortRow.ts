@@ -42,6 +42,16 @@ export const MD_EFFORT_LABEL_ELLIPSIS: string = '…'
 /** 量字用的字号，与每颗胶囊的 fontSize 必须一致：量宽与排版用同一个字号，上限才对得上。 */
 const MD_EFFORT_LABEL_FONT_SIZE: number = 10
 
+/**
+ * 这一排左侧维度列头的宽度（像素）。
+ *
+ * 与 leaf:listFilterRow 的 LIST_CAPTION_W 是同一个数，改一处就要改两处：那三行（状态 / 排序 /
+ * 标签）与这一行共用一条药丸左边界，只改一边，四行就错开。不跨片引用这个值，是因为客户端叶子
+ * 各自独立求值（门禁会把单叶子拿出来直接调），引用别片的名字在单片环境里直接报未定义。
+ * 门禁 verify-1639 会同时读两份源码核对这两个数相等，不会悄悄漂走。
+ */
+const MD_EFFORT_CAPTION_W: number = 42
+
 /** 量「19 个数字有多宽」的样本：数字等宽，用 19 个「0」量一次就够。 */
 const mdEffortDigitSample: string = '0'.repeat(MD_EFFORT_LABEL_DIGIT_LIMIT)
 
@@ -148,6 +158,9 @@ export const mdEffortRowNode = function (h: any, st: any, effortNames: any, meas
   // 容器用普通块，不用 flex：flex 子项会被整块化，行尾切不开（见文件头）。
   // 行高 20 像素，给胶囊上下留出余量：胶囊自己 18 像素高（14 行高 + 上下各 2 像素内边距与边框），
   // 两行之间不会叠在一起。
+  //
+  // 这一排不套悬挂缩进（不加 paddingLeft/负 textIndent）：维护者定的切口是「第二行头文字贴边」，
+  // 缩进会把续行整体推开，切口的观感就变了；代价是续行从行首起排，只有第一行留出列头的位置。
   const rowStyle: any = { display: 'block', lineHeight: '20px', marginBottom: 6 }
   // 每颗胶囊的公共排布：display:inline 覆盖 .dsws-chip 的 inline-flex，这是能被行尾切开的前提。
   const chipLayout: any = {
@@ -165,13 +178,14 @@ export const mdEffortRowNode = function (h: any, st: any, effortNames: any, meas
     WebkitBoxDecorationBreak: 'slice',
   }
   return h('div', { 'data-dsh-md-effort-row': '1', style: rowStyle }, [
-    // 这一排开头的「全部」也要自报维度：它与下面状态、标签两组的「全部」长得一样，
-    // 不写小标题就分不清这一颗清的是哪一维（本次维护者反馈的原话：有三个「全部」，都不知道是怎么维度）。
-    // 本行只在这一维（工作单元）有多个值时才画，所以标题不会单独出现。
+    // 这一排的列头：下面三组（状态 / 排序 / 标签）各占一行、左边都有列头，这里同样给一颗，
+    // 列宽与那三行同一个数，四行的药丸左边界才对得齐。列头只是文字，不接交互。
+    // 本行只在这一维（工作单元）有多个值时才画，所以列头不会单独出现。
     h('span', {
       key: 'cap-effort',
       style: {
-        display: 'inline', fontSize: MD_EFFORT_LABEL_FONT_SIZE, lineHeight: '14px',
+        display: 'inline-block', width: MD_EFFORT_CAPTION_W, textAlign: 'right',
+        fontSize: MD_EFFORT_LABEL_FONT_SIZE, lineHeight: '14px', verticalAlign: 'top',
         marginRight: 6, color: 'var(--dsws-label-caption,#8b8b95)', userSelect: 'none',
       },
     }, tr('list.group.effort')),

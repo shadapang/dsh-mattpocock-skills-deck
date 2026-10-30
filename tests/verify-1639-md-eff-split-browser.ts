@@ -187,6 +187,19 @@ async function main(): Promise<void> {
   const ELLIPSIS: string = leaf.MD_EFFORT_LABEL_ELLIPSIS
   check(leaf.MD_EFFORT_LABEL_DIGIT_LIMIT === 19, '文字上限是 19 个数字的宽度')
 
+  // 列头宽度两处必须是同一个数：这一排（工作单元）与下面那三行（状态 / 排序 / 标签）共用一条药丸左边界。
+  // 客户端叶子各自独立求值（上面 compileFn 只绑了四个名字），跨片引用会让单片求值直接报未定义，
+  // 所以这一份是抄的；抄的那一份在这里核对，避免一边改了另一边不知道、四行悄悄错开。
+  const readNumOf = function (rel: string, name: string): number {
+    // 取的是构建产物（spliceableJs 给的是同名的 .js）：那边没有类型标注，所以顺手吃掉可选的 `: number`。
+    const m: any = new RegExp(name + '\\s*(?::[^=]*)?=\\s*(\\d+)').exec(spliceableJs(rel))
+    return m ? Number(m[1]) : NaN
+  }
+  const EFFORT_CAPTION_W: number = readNumOf('src/client/views/mdEffortRow.js', 'MD_EFFORT_CAPTION_W')
+  const FILTER_CAPTION_W: number = readNumOf('src/client/views/listFilterRow.js', 'LIST_CAPTION_W')
+  check(Number.isFinite(EFFORT_CAPTION_W) && EFFORT_CAPTION_W === FILTER_CAPTION_W,
+    '两片列头宽度一致（工作单元行 ' + EFFORT_CAPTION_W + 'px，状态/排序/标签三行 ' + FILTER_CAPTION_W + 'px）')
+
   // ── 三、第一遍量字宽：用浏览器真字体量面板里的字号（10px），第二遍才能按同一把尺子算截断 ──
   const probeHtml: string = '<!doctype html><html><head><meta charset="utf-8"><style>' + STYLE_TEXT + '</style><style>'
     + 'html,body{margin:0;background:#16181d;color:#e6edf3;}'
@@ -251,6 +264,9 @@ async function main(): Promise<void> {
   const EXPECTED_LABEL: string = leaf.mdEffortLabelOf(LONG_NAME, injectedMeasure)
   check(EXPECTED_LABEL.slice(-1) === ELLIPSIS, '长目录名按上限截断，末尾是省略号（' + EXPECTED_LABEL + '）')
   const ALL_CHIP_W: number = chipWidth(ALL_TEXT)
+  // 第一行最前面是维度列头（「工作单元」）+ 它右边的 6 像素间距。这一段宽度要从「第一行还剩多少」里扣掉，
+  // 否则下面按药丸宽算出来的行尾位置会比真机偏右一整列，切口判据跟着算错。
+  const CAPTION_W: number = EFFORT_CAPTION_W + 6
   // 显示文字 = 截断后留下的前缀 + 省略号；宽度要按两段分别量再相加（省略号不是原名的前缀）。
   const LABEL_BODY: string = EXPECTED_LABEL.slice(0, -1)
   const LABEL_W: number = (EXPECTED_LABEL.length > 0 ? injectedMeasure(LABEL_BODY) : 0) + probe.ellWidth
@@ -266,7 +282,7 @@ async function main(): Promise<void> {
   let best: any = null
   for (let mask = 0; mask < (1 << FILLER_POOL.length); mask += 1) {
     const chosen: string[] = []
-    let used: number = ALL_CHIP_W
+    let used: number = ALL_CHIP_W + CAPTION_W
     for (let i = 0; i < FILLER_POOL.length; i += 1) {
       if (!(mask & (1 << i))) continue
       chosen.push(FILLER_POOL[i])
@@ -280,7 +296,7 @@ async function main(): Promise<void> {
   check(!!best, '能给长签凑出行尾只剩几十像素的第一行')
   const fillers: string[] = best ? best.chosen : []
   const names: string[] = fillers.concat([LONG_NAME])
-  const room: number = STAGE_WIDTH - ALL_CHIP_W - fillers.reduce(function (s: number, t: string) { return s + chipWidth(t) }, 0)
+  const room: number = STAGE_WIDTH - CAPTION_W - ALL_CHIP_W - fillers.reduce(function (s: number, t: string) { return s + chipWidth(t) }, 0)
   console.log('  · 第一行：「全部」+ ' + fillers.length + ' 颗短签，留给长签 ' + room.toFixed(1) + 'px；长签显示文字 ' + LABEL_W.toFixed(1) + 'px')
 
   // ── 五、画两个 stage：新写法与旧写法（同一棵树，只换排布样式） ──
