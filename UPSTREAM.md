@@ -144,3 +144,15 @@ node scripts/sync-upstream.mts --self-test
 2. 第二节「上游基线」表：新的一行，写上游 sha 与核对方式。
 
 REJECT 不用记上游基线（什么都没进来），但如果你为了这次专门研究了冲突，把结论写进当轮对话或票里。
+
+## 裸备仓离线补种（2026-10-30 实测）
+
+本仓是 partial clone（`blob:limit=1m`），缺失 blob 的补齐要回源 GitHub；GitHub 不可达时，`git push backup main` 与 `git clone --bare` 都会在 pack 阶段因 promisor 缺口截断（W1 的 `eof before pack header` 即此因）。备用做法＝文件系统级补种（不走 git 传输层，全程离线）：
+
+    git init --bare E:\repos\dsh-mattpocock-skills-deck.git
+    robocopy E:\repos\mattdeck\.git\objects E:\repos\dsh-mattpocock-skills-deck.git\objects /E
+    robocopy E:\repos\mattdeck\.git\refs E:\repos\dsh-mattpocock-skills-deck.git\refs /E
+    copy /Y E:\repos\mattdeck\.git\HEAD E:\repos\dsh-mattpocock-skills-deck.git\HEAD
+    copy /Y E:\repos\mattdeck\.git\packed-refs E:\repos\dsh-mattpocock-skills-deck.git\packed-refs
+
+补种后 `git -C <裸仓> log main` 可读、main sha 与本地一致。新增本地提交后按同一组命令再刷一次（裸仓 config 保持默认、不带 promisor 标记）；GitHub 恢复可用后改回 `git push backup main` 常规增量即可。
