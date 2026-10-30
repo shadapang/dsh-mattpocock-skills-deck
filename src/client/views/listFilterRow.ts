@@ -55,17 +55,20 @@ const LABEL_ALL_INK_BD: string = 'rgba(255,255,255,.65)'
 
 /**
  * 维度列头占的横向宽度（像素）：三行标题右对齐到这个宽度，右边药丸的左边界因此一致。
- * 现在的标题是「状态 / 排序 / 标签」，两个字在 10 像素字号下约 20 像素宽，42 像素足够且不挤；
- * 标题一旦改成三个字以上（例如「工作单元」四个字在同一行里由 mdEffortRow 自己画），
- * 要么调大这个数，要么接受标题被 nowrap 撑开——撑开会把同一面板里的三行左边界对不齐。
+ * 列头字号 15（药丸是 10），「工作单元」四个字约 60 像素宽，62 足够且不挤。
+ * 标题一旦再加字（五个字以上），要么调大这个数，要么接受标题被 nowrap 撑开——
+ * 撑开会把同一面板里各行药丸的左边界推歪。
  */
-const LIST_CAPTION_W: number = 42
+const LIST_CAPTION_W: number = 62
 
 /**
  * 一行左侧的维度列头。
  *
  * 为什么要有：这组药丸原来跟另外两组排在一条换行流里，每组都从一颗「全部」起头，三颗同形同色，
  * 分不清各自清的是哪一维。列头只是文字，不承担交互：不挂点击、不写日志、不参与墨块。
+ *
+ * 字号与字重比药丸大一档（15 对 10，加粗）：维护者要的是「一眼先看到筛的是什么」，
+ * 列头得比药丸显眼；颜色用主字色而不是淡灰，淡灰在深底上退到背景里去了。
  */
 const listGroupCaption = function (h: any, key: string): any {
   return h('span', {
@@ -73,8 +76,8 @@ const listGroupCaption = function (h: any, key: string): any {
     className: 'dsws-cap',
     style: {
       flex: 'none', width: LIST_CAPTION_W, marginRight: 6, textAlign: 'right',
-      fontSize: 10, lineHeight: '16px', marginTop: 2,
-      color: 'var(--dsws-label-caption,#8b8b95)', whiteSpace: 'nowrap', userSelect: 'none',
+      fontSize: 15, fontWeight: 600, lineHeight: '20px', marginTop: 1,
+      color: 'var(--dsw-alias-label-primary,#e6edf3)', whiteSpace: 'nowrap', userSelect: 'none',
     },
   }, tr('list.group.' + key))
 }

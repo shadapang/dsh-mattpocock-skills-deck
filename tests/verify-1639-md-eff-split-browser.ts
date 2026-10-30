@@ -9,7 +9,8 @@
 // 门禁锁的是维护者拍板的那三条（#1639）：
 //   1. 行尾放不下就在字与字之间切断：长目录签至少两片，第一片从第一行行尾开始，而不是整颗挪到第二行。
 //   2. 不许在胶囊内部折行：每一片最多一行高（约 18px，留到 24px 判定），不能是 30px 往上的高块。
-//   3. 切口是 slice：第二片从行左贴边接上（第一行尾平切口、第二行头文字贴边），不是两颗半截胶囊。
+//   3. 切口是 slice：第二片接在该行续行的起点上（第一行尾平切口、第二行头接着上一截的样式），不是两颗半截胶囊。
+//      续行起点是悬挂缩进线 = 行左 + 列头宽 + 6 像素间距：维护者要求多行时统一从第一行药丸的起点接着排。
 // 外加维护者新增的文字上限：每颗显示文字不超过 19 个数字字符的宽度，超出时末尾另加一个省略号；
 //   省略号不占那 19 个数字的额度，「全部」那颗不受影响，悬停与 aria-label 仍是全名。
 //
@@ -340,7 +341,9 @@ async function main(): Promise<void> {
   check(newStage.slices.every(function (s: any) { return s.height <= 24 }), '所有分片都不高于一行（没有哪一截折成两行）')
   check(last.top - first.top >= 15, '第二片落到第二行（两片行距 ' + (last.top - first.top).toFixed(1) + 'px）')
   check(first.right >= newStage.rowRight - 16, '第一片贴着行尾切断（右缘 ' + first.right.toFixed(1) + 'px，行右 ' + newStage.rowRight.toFixed(1) + 'px）')
-  check(last.left <= newStage.rowLeft + 4 && last.left >= newStage.rowLeft - 2, '第二片从行左贴边接上（左缘 ' + last.left.toFixed(1) + 'px，行左 ' + newStage.rowLeft.toFixed(1) + 'px）')
+  // 续行起点 = 行左 + 列头宽 + 间距（悬挂缩进）。判据跟着维护者的新口径走：多行统一对齐药丸列。
+  check(last.left <= newStage.rowLeft + CAPTION_W + 4 && last.left >= newStage.rowLeft + CAPTION_W - 2,
+    '第二片接在续行起点上（左缘 ' + last.left.toFixed(1) + 'px，起点 ' + (newStage.rowLeft + CAPTION_W).toFixed(1) + 'px）')
   check(newStage.maxCharRight <= newStage.rowRight + 1, '文字最右不超出这一行（' + newStage.maxCharRight.toFixed(1) + 'px ≤ ' + (newStage.rowRight + 1).toFixed(1) + 'px）')
   check(newStage.rowScrollWidth <= newStage.rowClientWidth + 1, '这一排没有横向溢出（scrollWidth ' + newStage.rowScrollWidth + ' ≤ clientWidth ' + newStage.rowClientWidth + ' + 1）')
   check(newStage.joined === EXPECTED_LABEL, '两截按行读回来拼成完整显示文字（「' + newStage.joined + '」）')

@@ -12,9 +12,11 @@
  *   这一种结果；胶囊自己也必须是 display:inline（.dsws-chip 原本是 inline-flex，在 flex 容器里
  *   看不出问题，换成内联流就永远切不开）。
  *   切口用 box-decoration-break:slice（也就是默认值，这里写出来是为了不让后来者无意改掉）：
- *   整串背景、圆角与边框只在最前和最后封口，第一行尾是平切口、第二行头文字贴边，
- *   读起来就是「同一颗胶囊被行尾切断，前一半在第一行、后一半接在第二行头」。
+ *   整串背景、圆角与边框只在最前和最后封口，第一行尾是平切口、第二行头接着上一截的样式，
+ *   读起来就是「同一颗胶囊被行尾切断，前一半在第一行、后一半接在第二行」。
  *   clone 会让每一截各自封口，第二行头像一颗新胶囊的开头，不是维护者要的效果。
+ *   续行的起点由悬挂缩进定（见下方 rowStyle）：维护者要求多行时统一从第一行药丸的起点接着排，
+ *   所以第二截落在药丸列那条线上，而不是贴在面板最左边（面板左边现在是列头的位置）。
  *   附带两条硬事实：内联流没有 gap，胶囊之间的间距只能靠 margin（这里显式给 8 像素，
  *   因为原来的容器 gap:4 与 .dsws-chip 自带的 margin-right:4 叠起来正好是 8 像素）；
  *   内联盒上的 max-width 不生效（CSS 2.1 第 10.4 节），原来的 maxWidth:220 只能把整颗胶囊
@@ -50,7 +52,7 @@ const MD_EFFORT_LABEL_FONT_SIZE: number = 10
  * 各自独立求值（门禁会把单叶子拿出来直接调），引用别片的名字在单片环境里直接报未定义。
  * 门禁 verify-1639 会同时读两份源码核对这两个数相等，不会悄悄漂走。
  */
-const MD_EFFORT_CAPTION_W: number = 42
+const MD_EFFORT_CAPTION_W: number = 62
 
 /** 量「19 个数字有多宽」的样本：数字等宽，用 19 个「0」量一次就够。 */
 const mdEffortDigitSample: string = '0'.repeat(MD_EFFORT_LABEL_DIGIT_LIMIT)
@@ -159,9 +161,16 @@ export const mdEffortRowNode = function (h: any, st: any, effortNames: any, meas
   // 行高 20 像素，给胶囊上下留出余量：胶囊自己 18 像素高（14 行高 + 上下各 2 像素内边距与边框），
   // 两行之间不会叠在一起。
   //
-  // 这一排不套悬挂缩进（不加 paddingLeft/负 textIndent）：维护者定的切口是「第二行头文字贴边」，
-  // 缩进会把续行整体推开，切口的观感就变了；代价是续行从行首起排，只有第一行留出列头的位置。
-  const rowStyle: any = { display: 'block', lineHeight: '20px', marginBottom: 6 }
+  // 悬挂缩进（paddingLeft + 负 textIndent）：维护者要求「换行后从第一行药丸的起点接着排」，
+  // 也就是续行要和「全部」右边那个位置对齐，不能跑到列头底下。缩进量 = 列头宽 + 6 像素间距，
+  // 与下面那三行（状态 / 排序 / 标签）的药丸左边界是同一个位置。
+  // 代价：被行尾切断的那颗胶囊，第二截也从这条缩进线起排（不再贴行首），
+  // 门禁 verify-1639 的对应判据已按这个新口径改。
+  const captionIndent: number = MD_EFFORT_CAPTION_W + 6
+  const rowStyle: any = {
+    display: 'block', lineHeight: '20px', marginBottom: 6,
+    paddingLeft: captionIndent, textIndent: -captionIndent,
+  }
   // 每颗胶囊的公共排布：display:inline 覆盖 .dsws-chip 的 inline-flex，这是能被行尾切开的前提。
   const chipLayout: any = {
     display: 'inline',
@@ -186,8 +195,9 @@ export const mdEffortRowNode = function (h: any, st: any, effortNames: any, meas
       className: 'dsws-cap',
       style: {
         display: 'inline-block', width: MD_EFFORT_CAPTION_W, textAlign: 'right',
-        fontSize: MD_EFFORT_LABEL_FONT_SIZE, lineHeight: '14px', verticalAlign: 'top',
-        marginRight: 6, color: 'var(--dsws-label-caption,#8b8b95)', userSelect: 'none',
+        // 字号与字重比药丸大一档（15 对 10，加粗），颜色用主字色：维护者要的是列头比药丸显眼。
+        fontSize: 15, fontWeight: 600, lineHeight: '20px', verticalAlign: 'top',
+        marginRight: 6, color: 'var(--dsws-alias-label-primary,#e6edf3)', userSelect: 'none',
       },
     }, tr('list.group.effort')),
     h('span', chipProps({
