@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T09:40:00.556Z",
+  "generatedAt": "2026-10-30T09:59:38.827Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 456,
   "gateCount": 456,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 26,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 621,
+  "graphFileCount": 622,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -12626,9 +12626,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 642,
+    "fileCount": 643,
     "dirCount": 74,
-    "coveredFileCount": 642,
+    "coveredFileCount": 643,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 57,
@@ -13255,6 +13255,7 @@
       "src/tracker/rooms/markdown/normalize.ts",
       "src/tracker/rooms/markdown/original-fields.ts",
       "src/tracker/rooms/markdown/page.ts",
+      "src/tracker/rooms/markdown/parse-fields.ts",
       "src/tracker/rooms/markdown/parse.ts",
       "src/tracker/rooms/markdown/patch-body.ts",
       "src/tracker/rooms/markdown/path.ts",
