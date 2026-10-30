@@ -183,6 +183,7 @@ export const mdEffortRowNode = function (h: any, st: any, effortNames: any, meas
     // 本行只在这一维（工作单元）有多个值时才画，所以列头不会单独出现。
     h('span', {
       key: 'cap-effort',
+      className: 'dsws-cap',
       style: {
         display: 'inline-block', width: MD_EFFORT_CAPTION_W, textAlign: 'right',
         fontSize: MD_EFFORT_LABEL_FONT_SIZE, lineHeight: '14px', verticalAlign: 'top',
