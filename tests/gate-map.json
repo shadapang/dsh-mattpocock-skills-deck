@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T14:31:13.638Z",
+  "generatedAt": "2026-10-30T14:59:09.508Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 458,
-  "gateCount": 458,
-  "attributedGates": 409,
+  "chainLength": 459,
+  "gateCount": 459,
+  "attributedGates": 410,
   "unattributedGates": 49,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 26,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 622,
+  "graphFileCount": 624,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -10520,6 +10520,29 @@
       "reason": "读到的路径都落在 scripts、tests/ 下（夹具、文档、工具脚本之类），不指向插件源码，所以算不出它守着哪条源码路径"
     },
     {
+      "step": "node tests/verify-workflow-view.ts",
+      "file": "tests/verify-workflow-view.ts",
+      "guards": [
+        "scripts/build.mts",
+        "src/client/index.ts",
+        "src/client/views/ListTab.ts",
+        "src/client/views/WorkflowView.ts",
+        "src/client/views/workflowLayout.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "scripts",
+        "src/client",
+        "src/client/views",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 5 条"
+    },
+    {
       "step": "node tests/verify-workspace-file-note.ts",
       "file": "tests/verify-workspace-file-note.ts",
       "guards": [
@@ -10992,6 +11015,7 @@
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-wire-subissues-script.ts",
       "node tests/verify-wizard-exit-609.ts",
+      "node tests/verify-workflow-view.ts",
       "node tests/verify-md-format-config.ts",
       "node tests/verify-star-history.ts",
       "node tests/verify-thanks-table.ts"
@@ -11124,6 +11148,7 @@
       "node tests/verify-tabsfold-leaf.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-ui-feedback.ts",
+      "node tests/verify-workflow-view.ts",
       "node tests/verify-locale-config.ts"
     ],
     "src/client/floating": [
@@ -11339,7 +11364,8 @@
       "node tests/verify-settings-view.ts",
       "node tests/verify-time-config.ts",
       "node tests/verify-ui-feedback.ts",
-      "node tests/verify-update-panel.ts"
+      "node tests/verify-update-panel.ts",
+      "node tests/verify-workflow-view.ts"
     ],
     "src/client/views/cards": [
       "node tests/verify-cards-dir.ts",
@@ -12640,6 +12666,7 @@
       "node tests/verify-ui-feedback.ts",
       "node tests/verify-update-panel.ts",
       "node tests/verify-visible-truth.ts",
+      "node tests/verify-workflow-view.ts",
       "node tests/verify-workspace-file-note.ts"
     ],
     "tests/tracker-contract": [
@@ -12662,9 +12689,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 643,
+    "fileCount": 645,
     "dirCount": 74,
-    "coveredFileCount": 643,
+    "coveredFileCount": 645,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 57,
@@ -12770,6 +12797,7 @@
       "src/client/views/SubworkspaceMark.ts",
       "src/client/views/TicketRow.ts",
       "src/client/views/UpdateEntryHost.ts",
+      "src/client/views/WorkflowView.ts",
       "src/client/views/cards/PixelBlockedChrome.ts",
       "src/client/views/cards/PixelCardBtns.ts",
       "src/client/views/cards/PixelCardFoot.ts",
@@ -12872,6 +12900,7 @@
       "src/client/views/versionControl/vcWriteRun.ts",
       "src/client/views/versionControl/vcWriteUi.ts",
       "src/client/views/versionControl/vcWriteView.ts",
+      "src/client/views/workflowLayout.ts",
       "src/deck/registration/agent-row.ts",
       "src/deck/registration/host-assemble.ts",
       "src/deck/registration/host-delegate.ts",

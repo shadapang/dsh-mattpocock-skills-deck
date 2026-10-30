@@ -783,6 +783,9 @@ const LEAF_MODULES: { id: string; file: string }[] = [
   // #1639：顶部那排 md目录签的排布（普通内联流、行尾照字面切断）与目录名文字上限（19 个数字的宽度 + 末尾省略号），
   //   从 ListTab 抽出，排在 listTab 之前（ListTab 调它画那一排）。
   { id: 'mdEffortRow', file: 'src/client/views/mdEffortRow.ts' },
+  // #1674：工作流视图的判定（纯函数，有门禁）与渲染层；两片都排在 listTab 之前 —— 列表页调 WorkflowViewNode。
+  { id: 'workflowLayout', file: 'src/client/views/workflowLayout.ts' },
+  { id: 'WorkflowView', file: 'src/client/views/WorkflowView.ts' },
   { id: 'listTab', file: 'src/client/views/ListTab.ts' },
   { id: 'prTab', file: 'src/client/views/PrTab.ts' },
   { id: 'skillsTab', file: 'src/client/views/SkillsTab.ts' },

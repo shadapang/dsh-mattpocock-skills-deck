@@ -38,6 +38,8 @@ declare function isEnabled(...args: any[]): any;
 declare function isOccupied(...args: any[]): any;
 declare function issuePageRowsOf(...args: any[]): any;
 declare function listIssueRow(...args: any[]): any;
+// #1674：工作流视图（按项目推进：一次只放一张「可接」，其余排队；有认领人的标「在做」）
+declare function WorkflowViewNode(...args: any[]): any;
 declare function listSkeletonNode(...args: any[]): any;
 declare function loadIssuePage(...args: any[]): any;
 declare function mapBlockOf(...args: any[]): any;
@@ -325,6 +327,27 @@ export     const ListTab = ({ st, narrow }: any) => {
       //   带任何筛选时 N 退回手上的行数 —— 后端给的是全仓总数，与筛过的列表对不上会让人以为少了票。
       const foldCounts = deckCountsOf(st, !!(((st.effFilters || []).length) || ((st.lblFilters || []).length)))
       const kpi = (num: any, lab: any, icon: any, color: any) => h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--dsw-alias-label-secondary,#a1a1aa)' } }, [Ic({ n: icon, size: 11, color: color }), h('span', null, String(num) + ' ' + lab)])
+      // #1674：列表面板两个视图。默认「工作流视图」——维护者 2026-10-30 定：不按清单一张张刷，
+      //   按项目/工作流推进；同一时刻只放一张进「可接」，其余排队。任务卡视图保持改动前的样子。
+      const cardsView: boolean = st.listView === 'cards'
+      const viewSwitch = h('div', { key: 'view-switch', style: { display: 'flex', gap: 6, alignItems: 'center', padding: '2px 2px 6px' } }, [
+        h('button', {
+          key: 'lv-cards',
+          className: 'dsws-btn' + (cardsView ? ' primary' : ' dsws-hov'),
+          'data-press': 'button',
+          'data-log': 'list.view.cards',
+          onClick: function (e: any) { e.stopPropagation(); st.listView = 'cards'; emit(st) },
+          style: { fontSize: 11, padding: '0 8px', height: 22 },
+        }, tr('list.viewCards')),
+        h('button', {
+          key: 'lv-flow',
+          className: 'dsws-btn' + (cardsView ? ' dsws-hov' : ' primary'),
+          'data-press': 'button',
+          'data-log': 'list.view.flow',
+          onClick: function (e: any) { e.stopPropagation(); st.listView = 'flow'; emit(st) },
+          style: { fontSize: 11, padding: '0 8px', height: 22 },
+        }, tr('list.viewFlow')),
+      ])
       return h('div', null, [
         // v1.5：已选标签过滤条（仅标签 · 颜色 = 该标签配置色 · 点 ✕ 关闭）
         (st.lblFilters && st.lblFilters.length) ? h('div', { style: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginBottom: 6 } }, [
@@ -385,6 +408,9 @@ export     const ListTab = ({ st, narrow }: any) => {
         //   末尾省略号）都住在 views/mdEffortRow.ts —— 排布要能用真浏览器量，画法与判据放在同一份真源。
         multiEffort ? mdEffortRowNode(h, st, effortNames) : null,
         listFilterRowNode(h, st, colorOf, sortedLabels),
+        viewSwitch,
+        // 工作流视图：把票按项目/工作流摊成「根卡 → 依赖链 → 并行分叉」，判定在 views/workflowLayout.ts
+        cardsView ? null : WorkflowViewNode(st, narrow),
         // #690：历史票翻页那一行 —— 「已加载 x / 共 N」、翻页位置失效、取不到、后端不支持翻页各说各的
         //   （出处见 views/ListTabClosed.js 的注释；x 与折叠行那两个数同源：就是当前列表里真的画出来的行数）。
         closedPagesNode(h, st, closedRows.length),
@@ -408,19 +434,19 @@ export     const ListTab = ({ st, narrow }: any) => {
         })(),
         // v1.5 B5 降级横幅：走 REST 通道取回来的那份数据要明说 —— 判据（restFallbackView）与画法都在 views/shared/RestFallbackBanner.js。
         h(RestFallbackBanner, { key: 'restFallback', st: st }),
-        // #374：状态过滤渲染 —— open 主体 / closed 列表 / 「全部」态保留已关闭折叠行
-        showOpen ? (filteredOpen.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredOpen.map(function (x: any) { return listIssueRow(h, st, x, true, narrow, blockOf, colorOf, multiEffort) })) : null,
-        showClosedList ? (filteredClosed.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredClosed.map(function (x: any) { return listIssueRow(h, st, x, false, narrow, blockOf, colorOf, multiEffort) })) : null,
+        // #374：状态过滤渲染 —— open 主体 / closed 列表 / 「全部」态保留已关闭折叠行（任务卡视图才有）
+        cardsView ? (showOpen ? (filteredOpen.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredOpen.map(function (x: any) { return listIssueRow(h, st, x, true, narrow, blockOf, colorOf, multiEffort) })) : null) : null,
+        cardsView ? (showClosedList ? (filteredClosed.length === 0 ? h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary,#a1a1aa)', padding: '14px 0', textAlign: 'center' } }, tr('list.none')) : filteredClosed.map(function (x: any) { return listIssueRow(h, st, x, false, narrow, blockOf, colorOf, multiEffort) })) : null) : null,
         // v14-4⑤：列表底部「已关闭 (N)」折叠行（仅「全部」状态显示；默认收起，只占一行，展开可见）
         // #689：文案改成「已关闭 N（已加载 x）」—— N 是后端计数说的总数，x 是列表里真加载到的行数；
         //   两个不一样时（本仓现在就是）用户一眼能看出「还有多少没装进来」，而不是以为列表就是全部。
-        (st.stateFilter === 'all' && closedRows.length) ? h('details', { style: { marginTop: 8 }, onToggle: function (e: any) { const open = !!(e && e.target && e.target.open); st.closedFoldOpen = open; emit(st); if (open) loadIssuePage(st, { view: 'list' }) } }, [
+        cardsView ? ((st.stateFilter === 'all' && closedRows.length) ? h('details', { style: { marginTop: 8 }, onToggle: function (e: any) { const open = !!(e && e.target && e.target.open); st.closedFoldOpen = open; emit(st); if (open) loadIssuePage(st, { view: 'list' }) } }, [
           // 本次界面反馈需求：折叠条能点（展开已关闭列表），给它自己的按压态与点击日志。
           h('summary', { className: 'dsws-hov', 'data-press': 'button', 'data-log': 'list.fold.closed', style: { fontSize: 11, color: 'var(--dsw-alias-label-caption,#8b8b95)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 2px', userSelect: 'none' } }, [
             Ic({ n: 'check', size: 11 }),
             h('span', null, tr('list.closedN', { n: foldCounts ? foldCounts.closed : closedRows.length, x: closedRows.length })),
           ]),
           h('div', null, closedRows.map(function (x: any) { return listIssueRow(h, st, x, false, narrow, blockOf, colorOf, multiEffort) })),
-        ]) : null,
+        ]) : null) : null,
       ])
     }
