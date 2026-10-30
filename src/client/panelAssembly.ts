@@ -162,6 +162,10 @@ declare const CONTAINER_ACCENT: any;
       } catch (e) { nativeTabDisposer = null; return false }
       return true
     }
+    // 原生右栏的类型注册好没有：自动展开面板要等这一步完成（见 kernel/router.ts 的 autoOpenPanelOnce）。
+    // 注册是异步的（ctx.inject(['sidebarRightTabs']) 等宿主先声明槽位后给服务），注册前调用必失败；
+    // 这里只回答「现在能不能开」，不负责重试，重试节奏由调用方定。
+    export const nativeTabReady = function (): boolean { return !!nativeTabDisposer }
     export const registerNativeTabSlots = function () {
       if (!nativeTabDisposer) return false  // 类型没注册上就不注册内容体，避免留下半截注册
       __injectOnce('sidebar.right.pane.tab', function () {

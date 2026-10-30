@@ -12,6 +12,7 @@
  * 也不要写 export default（构建侧 inlineExportDeclarations 不收 as 改名）。
  */
 // 调用的动作函数（同目录叶子：分段、判据、阶梯机、菜单、横幅、胶囊；在办、交接、注入等由 kernel 提供）。
+declare function autoOpenPanelOnce(...args: any[]): any;
 declare function backendColorOf(...args: any[]): any;
 declare function capFoldScheduleFold(...args: any[]): any;
 declare function checksumsOf(...args: any[]): any;
@@ -282,6 +283,10 @@ export const StatusBar = (props: any) => {
   //   换回完整的一串（时间串一直在变），那一刻胶囊可能当场溢出。这件事现在由下面这条副作用接管 ——
   //   它在每次提交之后跑一次，不排任何定时器、也不自续：谁把字写回完整的，下一帧就又被收一遍。
   React.useEffect(function () { scheduleFold() })
+  // 默认展开右侧面板（维护者 2026-10-30 定）：这条会话第一次画出来时把面板开进右侧边栏一次。
+  //   只挂一次（空依赖），且每条会话各自记一个标记（见 kernel/router.ts 的 autoOpenPanelOnce）——
+  //   deck 工具箱关掉的工作区、以及用户自己关掉面板之后，都不会被再打开。
+  React.useEffect(function () { try { autoOpenPanelOnce(s) } catch (e) {} }, [])
   // #196 · 状态栏胶囊移除 backend segment 后不再在此处挂 SwitchConfirmModal（仍由 Dock/Overlay 挂载，状态机保留）
   const _isGatePending = !!(_selSBGate && _selSBGate.pending && !!s.cwd)
   const _gateActive = _isOtherSBGate || _isGatePending

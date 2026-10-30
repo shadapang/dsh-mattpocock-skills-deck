@@ -47,6 +47,7 @@ declare const inspectPrompt: any;
 declare const completePrompt: any;
 declare const dswsLogHash: any;
 declare const isDeckClosed: any;
+declare const nativeTabReady: any;
 // #606 面板打开各阶段计时的唯一状态。一次点开面板的调用链上只写读这几个数：
 //   openPanel 记下点击那一刻；Dock 记下进入渲染那一刻与提交完成；
 //   列表把提交阶段里做折叠测量花掉的毫秒累加进来；DockSync 在副作用里把各段落成日志。
@@ -163,6 +164,33 @@ export const openPanel = function (st: any): void {
   logPanelStage('entry-unavailable', panelNow() - panelClock.t0);
   try { flash(st, tr('panel.openUnavailable'), 'warn'); } catch (e) {}
 };
+// 默认展开右侧面板（维护者 2026-10-30 定）：一条会话第一次画出来时，把面板开进原生右侧边栏一次。
+// 两条必须守住的纪律：
+//   ① deck 工具箱关掉的工作区静默跳过 —— openPanel 在那种工作区会弹「已关闭」提示，每条会话弹一次是噪音；
+//   ② 同一条会话只试一次（标记挂在会话状态上，随会话结束消失）：用户随后自己点了红色 X 关掉面板，
+//      切走再切回来也不再被强行打开，否则「默认展开」会变成「关不掉」。
+// 为什么要等 nativeTabReady：原生右栏的类型注册是异步的（panelAssembly 里 ctx.inject(['sidebarRightTabs'])），
+//   注册完成前 openInNativeRight 必失败，而 openPanel 失败会弹「面板打开不可用」——启动期弹这个纯属误报。
+//   所以这里先等注册完成再开，等不到（宿主没有右栏服务）就静默放弃，一行提示都不弹。
+export const autoOpenPanelOnce = function (st: any): void {
+  try {
+    if (!st) return
+    if (st.autoPanelOpened === true) return
+    st.autoPanelOpened = true
+    if (typeof isDeckClosed === 'function' && isDeckClosed(st.cwd)) return
+    // 25 次 × 200 毫秒 ≈ 5 秒：够宿主把服务交出来；还没好就当作这台宿主没有右栏，不再等。
+    let tries = 0
+    const kick = function (): void {
+      tries++
+      let ready = false
+      try { ready = (typeof nativeTabReady === 'function') && nativeTabReady() === true } catch (e) { ready = false }
+      if (ready) { openPanel(st); return }
+      if (tries >= 25) return
+      try { setTimeout(kick, 200) } catch (e) {}
+    }
+    kick()
+  } catch (e) {}
+}
 export const togglePanel = function (st: any): void {
   if (st.open) { st.open = false; emit(st); return; }
   openPanel(st);
