@@ -201,11 +201,19 @@ async function main(): Promise<void> {
   check(Number.isFinite(EFFORT_CAPTION_W) && EFFORT_CAPTION_W === FILTER_CAPTION_W,
     '两片列头宽度一致（工作单元行 ' + EFFORT_CAPTION_W + 'px，状态/排序/标签三行 ' + FILTER_CAPTION_W + 'px）')
 
-  // ── 三、第一遍量字宽：用浏览器真字体量面板里的字号（10px），第二遍才能按同一把尺子算截断 ──
+  // 药丸字号同理：这一排的字号（MD_EFFORT_LABEL_FONT_SIZE）必须与下面三行（LIST_CHIP_FONT）相等，
+  // 否则同一块筛选区里两种大小；这个数也是下面量字宽的尺子（原来写死 10，字一改判据就全偏）。
+  const EFFORT_FONT: number = readNumOf('src/client/views/mdEffortRow.js', 'MD_EFFORT_LABEL_FONT_SIZE')
+  const FILTER_FONT: number = readNumOf('src/client/views/listFilterRow.js', 'LIST_CHIP_FONT')
+  check(Number.isFinite(EFFORT_FONT) && EFFORT_FONT === FILTER_FONT,
+    '两片药丸字号一致（工作单元行 ' + EFFORT_FONT + 'px，状态/排序/标签三行 ' + FILTER_FONT + 'px）')
+  const CHIP_FONT: number = EFFORT_FONT
+
+  // ── 三、第一遍量字宽：用浏览器真字体按药丸实际字号量，第二遍才能按同一把尺子算截断 ──
   const probeHtml: string = '<!doctype html><html><head><meta charset="utf-8"><style>' + STYLE_TEXT + '</style><style>'
     + 'html,body{margin:0;background:#16181d;color:#e6edf3;}'
     + 'body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px;line-height:1.6}'
-    + '.probe{position:absolute;left:-9999px;top:0;font-size:10px;line-height:14px;white-space:nowrap}'
+    + '.probe{position:absolute;left:-9999px;top:0;font-size:' + CHIP_FONT + 'px;line-height:1.7;white-space:nowrap}'
     + '</style></head><body>'
     + '<span class="probe" id="probe-cap">' + DIGIT_SAMPLE + '</span>'
     + '<span class="probe" id="probe-ell">' + esc(ELLIPSIS) + '</span>'
@@ -223,7 +231,8 @@ async function main(): Promise<void> {
     probe = await page.evaluate(function (args: any) {
       const cs = getComputedStyle(document.body)
       const ctx: any = document.createElement('canvas').getContext('2d')
-      ctx.font = '10px ' + cs.fontFamily
+      // 画布必须与药丸同一个字号量（字号现在不是 10 了；写死会让「元素量 vs 画布量」对不上）。
+      ctx.font = args.fontPx + 'px ' + cs.fontFamily
       const texts: any = {}
       Array.prototype.slice.call(document.querySelectorAll('.probe[data-p]')).forEach(function (n: any) {
         texts[n.getAttribute('data-p')] = n.getBoundingClientRect().width
@@ -243,7 +252,7 @@ async function main(): Promise<void> {
         longPrefixes: prefixes,
         longWidth: ctx.measureText(args.longName).width,
       }
-    }, { digits: DIGIT_SAMPLE, longName: LONG_NAME })
+    }, { digits: DIGIT_SAMPLE, longName: LONG_NAME, fontPx: CHIP_FONT })
   })
 
   check(!!probe, '浏览器量到了字宽')
@@ -308,7 +317,7 @@ async function main(): Promise<void> {
     + 'html,body{margin:0;background:#16181d;color:#e6edf3;}'
     + 'body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:13px;line-height:1.6}'
     + '.stage{width:' + STAGE_WIDTH + 'px;margin:0 0 10px 0;background:#16181d}'
-    + '.probe{position:absolute;left:-9999px;top:0;font-size:10px;line-height:14px;white-space:nowrap}'
+    + '.probe{position:absolute;left:-9999px;top:0;font-size:' + CHIP_FONT + 'px;line-height:1.7;white-space:nowrap}'
     + '</style>'
   const finalHtml: string = '<!doctype html><html><head><meta charset="utf-8"><style>' + STYLE_TEXT + '</style>' + pageCss
     + '</head><body>'

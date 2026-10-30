@@ -41,8 +41,12 @@ export const MD_EFFORT_LABEL_DIGIT_LIMIT: number = 19
 /** 截断标记：一个省略号字符，不占上面那 19 个数字的宽度额度。 */
 export const MD_EFFORT_LABEL_ELLIPSIS: string = '…'
 
-/** 量字用的字号，与每颗胶囊的 fontSize 必须一致：量宽与排版用同一个字号，上限才对得上。 */
-const MD_EFFORT_LABEL_FONT_SIZE: number = 10
+/**
+ * 量字用的字号，与每颗胶囊的 fontSize 必须一致：量宽与排版用同一个字号，上限才对得上。
+ * 13 = 面板正文同号（原本 10，维护者反馈看不清标签）；与 leaf:listFilterRow 的 LIST_CHIP_FONT
+ * 必须是同一个数：四行药丸一样大，verify-1639 会核对这两个值相等。
+ */
+const MD_EFFORT_LABEL_FONT_SIZE: number = 13
 
 /**
  * 这一排左侧维度列头的宽度（像素）。

@@ -45,6 +45,14 @@ declare function liquidInkRemember(...args: any[]): void
 
 // 药丸是圆角胶囊：墨块圆角 99px（页签那组用默认的 6px，由宿主自己的 data-ink-radius 决定）。
 const INK_RADIUS: string = '99px'
+
+/**
+ * 这一片药丸的字号。原本是 10，是面板里最小的一档字（面板正文 13、列表标题 12.5），维护者反馈
+ * 「看不清标签是什么」——提到 13，与面板正文同号；`.dsws-chip` 自带的 11 被这里覆盖。
+ * 目录签那排（mdEffortRow）的 MD_EFFORT_LABEL_FONT_SIZE 必须是同一个值：四行药丸要一样大，
+ * 而且那排的截断上限就是按这个字号量的。门禁 verify-1639 会核对这两个数相等。
+ */
+const LIST_CHIP_FONT: number = 13
 // 三个组的选中色就是搬出前各颗药丸用的那三套值；墨块照抄，界面不出现第五种颜色。
 const STATE_INK_BG: string = 'rgba(188,140,255,.18)'
 const STATE_INK_BD: string = 'rgba(188,140,255,.6)'
@@ -67,7 +75,7 @@ const LIST_CAPTION_W: number = 62
  * 为什么要有：这组药丸原来跟另外两组排在一条换行流里，每组都从一颗「全部」起头，三颗同形同色，
  * 分不清各自清的是哪一维。列头只是文字，不承担交互：不挂点击、不写日志、不参与墨块。
  *
- * 字号与字重比药丸大一档（15 对 10，加粗）：维护者要的是「一眼先看到筛的是什么」，
+ * 字号与字重比药丸大一档（15 对 13，加粗）：维护者要的是「一眼先看到筛的是什么」，
  * 列头得比药丸显眼；颜色用主字色而不是淡灰，淡灰在深底上退到背景里去了。
  */
 const listGroupCaption = function (h: any, key: string): any {
@@ -135,7 +143,7 @@ export const listFilterRowNode = function (h: any, st: any, colorOf: any, sorted
         emit(st)
       },
       style: {
-        cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10,
+        cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: LIST_CHIP_FONT,
         background: isAll ? 'rgba(255,255,255,.08)' : (hexA(c, 0.18) || 'rgba(188,140,255,.16)'),
         color: isAll ? 'var(--dsw-alias-label-secondary,#a1a1aa)' : (c ? '#' + c : '#bc8cff'),
         border: '1px solid ' + (on ? selColor : borderColor),
@@ -168,7 +176,7 @@ export const listFilterRowNode = function (h: any, st: any, colorOf: any, sorted
       e.stopPropagation()
       liquidInkRemember(e.currentTarget, k, 'state')
       st.stateFilter = k; listPrefs.stateFilter = k; saveListPrefs('stateFilter'); emit(st)
-    }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? STATE_INK_BG : 'rgba(255,255,255,.06)', color: on ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? STATE_INK_BD : 'rgba(255,255,255,.15)') } }), tr('list.state.' + k))
+    }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: LIST_CHIP_FONT, background: on ? STATE_INK_BG : 'rgba(255,255,255,.06)', color: on ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? STATE_INK_BD : 'rgba(255,255,255,.15)') } }), tr('list.state.' + k))
   })
 
   const sortChips = ['updatedAt', 'createdAt', 'number', 'title'].map(function (k: any) {
@@ -180,15 +188,15 @@ export const listFilterRowNode = function (h: any, st: any, colorOf: any, sorted
       if (st.sortKey === k) { st.sortDir = st.sortDir === 'asc' ? 'desc' : 'asc' }
       else { st.sortKey = k; st.sortDir = (k === 'title') ? 'asc' : 'desc' }
       listPrefs.sortKey = st.sortKey; listPrefs.sortDir = st.sortDir; saveListPrefs(['sortKey', 'sortDir']); emit(st)
-    }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? SORT_INK_BG : 'rgba(255,255,255,.06)', color: on ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? SORT_INK_BD : 'rgba(255,255,255,.15)') } }), tr('list.sort.' + k) + arrow)
+    }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: LIST_CHIP_FONT, background: on ? SORT_INK_BG : 'rgba(255,255,255,.06)', color: on ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? SORT_INK_BD : 'rgba(255,255,255,.15)') } }), tr('list.sort.' + k) + arrow)
   })
 
   const labelChips: any[] = [
     chip(tr('list.all'), false, !st.lblFilters || !st.lblFilters.length, true, 0),
     // #405：filter row 默认可见数 9 → 4（与 per-row 一致）；+N 触发条件 + 数字同步
     (st.expLabels ? sortedLabels : sortedLabels.slice(0, 4)).map(function (nm: any, i: any) { return chip(nm, true, (st.lblFilters || []).indexOf(nm) >= 0, false, i) }),
-    (!st.expLabels && sortedLabels.length > 4) ? h(Tip, { content: tr('list.tagsTitle', { names: sortedLabels.join('、') }) }, h('span', chipProps({ key: 'lbl-more', className: 'dsws-chip', 'data-press': 'chip', 'data-log': 'list.filter.label.more', onClick: function (e: any) { e.stopPropagation(); st.expLabels = true; emit(st) }, style: { fontSize: 10, marginRight: 4, marginBottom: 3, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px dashed rgba(188,140,255,.55)', cursor: 'pointer' } }), '+' + (sortedLabels.length - 4))) : null,
-    st.expLabels ? h(Tip, { content: tr('list.tagsCollapseTitle') }, h('span', chipProps({ key: 'lbl-less', className: 'dsws-chip', 'data-press': 'chip', 'data-log': 'list.filter.label.less', onClick: function (e: any) { e.stopPropagation(); st.expLabels = false; emit(st) }, style: { fontSize: 10, marginRight: 4, marginBottom: 3, background: 'rgba(255,255,255,.06)', color: 'var(--dsws-label-caption,#8b8b95)', border: '1px dashed rgba(255,255,255,.3)', cursor: 'pointer' } }), tr('list.collapse'))) : null,
+    (!st.expLabels && sortedLabels.length > 4) ? h(Tip, { content: tr('list.tagsTitle', { names: sortedLabels.join('、') }) }, h('span', chipProps({ key: 'lbl-more', className: 'dsws-chip', 'data-press': 'chip', 'data-log': 'list.filter.label.more', onClick: function (e: any) { e.stopPropagation(); st.expLabels = true; emit(st) }, style: { fontSize: LIST_CHIP_FONT, marginRight: 4, marginBottom: 3, background: 'rgba(188,140,255,.1)', color: '#bc8cff', border: '1px dashed rgba(188,140,255,.55)', cursor: 'pointer' } }), '+' + (sortedLabels.length - 4))) : null,
+    st.expLabels ? h(Tip, { content: tr('list.tagsCollapseTitle') }, h('span', chipProps({ key: 'lbl-less', className: 'dsws-chip', 'data-press': 'chip', 'data-log': 'list.filter.label.less', onClick: function (e: any) { e.stopPropagation(); st.expLabels = false; emit(st) }, style: { fontSize: LIST_CHIP_FONT, marginRight: 4, marginBottom: 3, background: 'rgba(255,255,255,.06)', color: 'var(--dsws-label-caption,#8b8b95)', border: '1px dashed rgba(255,255,255,.3)', cursor: 'pointer' } }), tr('list.collapse'))) : null,
   ]
 
   return h('div', {
