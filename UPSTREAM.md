@@ -58,11 +58,19 @@ git log --oneline main..upstream/main       # 还没进来的上游提交（欠�
 
 ## 三、本地改动清单
 
-### 仓库内的提交
+### 仓库内的本地改动（本机记录，随合并追加）
 
-本机只能看到 `main` 上**一个**提交（`2348e29`，见上），更早的历史在浅克隆的边界之外。
-因此这里暂时不能给出「本地新增的提交清单」——那需要上游 ref 才能算，见第二节最后的命令。
-在补全之前，任何一次上游合并都必须**逐文件看 diff**，不要假设「历史里没有就是没改」。
+本机是浅克隆（深度 1）且没有上游 ref，所以「哪些提交不属于上游」不能用 `git log upstream/main..main` 一次算全。
+下面这张表记的是**已知**的本地提交，逐条写明改了什么、为什么；首轮 `git fetch upstream main` 之后要按第二节最后的命令补全差集。
+补全之前，任何一次上游合并都必须**逐文件看 diff**，不要假设「历史里没有就是没改」。
+
+| 日期 | 提交 | 改了什么 | 为什么 |
+|---|---|---|---|
+| 2026-10-30 | `a010c5a` | `src/tracker/rooms/markdown/parse.ts` 在票面无 Status 行时仍给出认领态（空数组 = 明确未认领）；`tests/tracker-contract/fixtures/markdown.ts`、`tests/verify-markdown-backend.ts` 跟随 | W1-02：新建子票不再被判 indeterminate，frontier 里能看见 |
+| 2026-10-30 | `904fcef` | `UPSTREAM.md`（本文件）、`scripts/sync-upstream.mts`、`scripts/tsconfig.json`、`scripts/node-ambient.d.ts` | W2-02：上游合并流程与三步验证 |
+| 2026-10-30 | `2f73f39` | 本文件「演练记录」一节 | 把首次真实演练写回台账 |
+
+上游合并时对这三条要有意识：`parse.ts` 那条是行为修复，若上游在同一处也改过，冲突按人裁决（不是产物冲突，脚本会 REJECT 交人处理）。
 
 ### 已知的仓外本地补丁（不影响合并，但升级会被覆盖）
 
