@@ -62,8 +62,9 @@ Blocked by:
   meta: { key: '01', parentKey: null, isMap: false, createdAt: '', updatedAt: '' },
 }
 
-// 额外：无 Status 的 indeterminate 样本（用于 deckCases）
-const indeterminateText = `# No Status Issue
+// 额外：没有 Status 行的样本（用于 deckCases）。本地格式里「没有这一行」就是未开始、没人认领，
+// 所以它读出来是 assignees: []（EMPTY）、可进 frontier，而不是 assignees MISSING 的 indeterminate。
+const noStatusText = `# No Status Issue
 
 Body without status line.
 
@@ -102,9 +103,9 @@ export const markdownFixture = {
       expected: { claimed: false, blocked: true, frontier: false },
     },
     {
-      name: 'indeterminate-missing-assignees',
-      issue: normalizeIssue(indeterminateText, { key: '04', parentKey: null, isMap: false }),
-      expected: { claimed: null, blocked: false, frontier: false },
+      name: 'no-status-line-is-open-unclaimed',
+      issue: normalizeIssue(noStatusText, { key: '04', parentKey: null, isMap: false }),
+      expected: { claimed: false, blocked: false, frontier: true },
     },
     {
       name: 'notfound-dep-safe-blocked',
@@ -144,7 +145,10 @@ export function markdownExtraAssertions() {
   assert('no subIssues field', !('subIssues' in e), 'subIssues present')
   assert('no blocking field', !('blocking' in e), 'blocking present')
   assert('parentKey core', 'parentKey' in e, 'parentKey missing')
-  assert('indeterminate missing assignees', !('assignees' in normalizeIssue(indeterminateText, { key: '04', parentKey: null, isMap: false })), 'assignees should be MISSING for no Status')
+  // 没有 Status 行也要挂上认领人（EMPTY=明确没人认领）：只省掉这个字段会让 deck 把它算成
+  // indeterminate，新建的子票与没补过 Status 的老票就都不进 frontier（票 #02 的根因）。
+  const noStatus = normalizeIssue(noStatusText, { key: '04', parentKey: null, isMap: false })
+  assert('no Status line still reports assignees EMPTY', 'assignees' in noStatus && Array.isArray(noStatus.assignees) && noStatus.assignees.length === 0, 'got ' + JSON.stringify(noStatus.assignees))
   return out
 }
 

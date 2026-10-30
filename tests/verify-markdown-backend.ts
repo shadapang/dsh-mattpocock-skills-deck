@@ -458,6 +458,28 @@ console.log('\n== #1174 复核订正闸：五处对不上的输入 ==')
   fs.rmSync(rgTmp, { recursive: true, force: true })
 }
 
+// ── #02：没有 Status 行的子票不许被判成「认领态未知」 ──
+// 判据取 deck 派生出来的那几个数（可接 / 已认领 / 认领态未知），不看代码长什么样：
+// 本地票面里「没有 Status 行」就是未开始、没人认领；读侧若把它当「不知道」，
+// 新建的子票与所有没补过 Status 的老票都会从可接清单里消失（实测一张地图 7 张票全被判未知、可接 0 张）。
+console.log('\n== #02 没有 Status 行的子票进 frontier（不再判 indeterminate） ==')
+{
+  const { deriveDeck } = await import('../src/tracker/deck-derive.ts')
+  const oldText = '# 01: 没有 Status 行的老票\n\nType: research\n\n## Question\n\n要查什么？\n'
+  const newText = '# 02: 新建的子票\n\nType: research\n\nStatus: open\n\n## Question\n\n要查什么？\n'
+  const oldIssue = parseMd(oldText, { key: '01', parentKey: '00', isMap: false })
+  const newIssue = parseMd(newText, { key: '02', parentKey: '00', isMap: false })
+  check(Array.isArray(oldIssue.assignees) && oldIssue.assignees.length === 0,
+    '① 没有 Status 行的票读回认领人是空数组（EMPTY=明确没人认领）：' + JSON.stringify(oldIssue.assignees))
+  const open = deriveDeck({ maps: [{ key: '00', state: 'open', assignees: [], tickets: [oldIssue, newIssue] }], issues: [] })
+  check(open.stats.indeterminate === 0, '② 派生统计里认领态未知为 0（旧行为是 2）：' + JSON.stringify(open.stats))
+  check(open.stats.frontier === 2, '③ 两张票都算进可接（旧行为是 0）：' + String(open.stats.frontier))
+  const claimed = parseMd('# 03: 有人在做\n\nType: task\n\nStatus: claimed\n\n## Question\n\nx\n', { key: '03', parentKey: '00', isMap: false })
+  const claimedDeck = deriveDeck({ maps: [{ key: '00', state: 'open', assignees: [], tickets: [claimed] }], issues: [] })
+  check(claimedDeck.stats.claimed === 1 && claimedDeck.stats.frontier === 0,
+    '④ 写着 claimed 的票仍然算已认领、不算可接：' + JSON.stringify(claimedDeck.stats))
+}
+
 if (failed || hFailed > 0) {
   console.log('\n存在失败 — verify-markdown-backend 未通过')
   process.exit(1)
