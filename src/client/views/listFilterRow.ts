@@ -61,6 +61,29 @@ const logSlugOf = function (name: any): string {
   } catch (e) { return 'x' }
 }
 
+/**
+ * 三组筛选药丸的行内小标题（状态 / 排序 / 标签）。
+ *
+ * 为什么要有：这三组挤在同一条换行流里，每组都从一个「全部」起头，不写小标题就分不清
+ * 那一颗「全部」归哪一维（维护者原话：有三个「全部」，都不知道是怎么维度）。
+ * 小标题只是文字，不承担交互：不挂点击、不写日志、不参与墨块。
+ *
+ * 为什么是行内小标题、不拆成三行：面板常驻在右侧窄栏，拆行要多占一行高度；
+ * 小标题与自己的药丸同排，代价只有几个字宽。等窄到小标题会跟自己的药丸被拆到两行时，
+ * 再改成每个维度独占一行。
+ */
+const listGroupCaption = function (h: any, key: string): any {
+  return h('span', {
+    key: 'cap-' + key,
+    className: 'dsws-cap',
+    style: {
+      fontSize: 10, marginRight: 4, marginBottom: 3,
+      color: 'var(--dsws-label-caption,#8b8b95)',
+      flex: 'none', whiteSpace: 'nowrap', userSelect: 'none',
+    },
+  }, tr('list.group.' + key))
+}
+
 export const listFilterRowNode = function (h: any, st: any, colorOf: any, sortedLabels: any) {
   // 三块墨块共用一个宿主（这一行）：每块自己带 data-ink-group，只认本组的选中项。
   const hostRef = React.useRef(null)
@@ -115,6 +138,8 @@ export const listFilterRowNode = function (h: any, st: any, colorOf: any, sorted
   }, [
     stateInk, sortInk, labelInk,
     // #374/#375：状态过滤 + 排序 + label 过滤 chips（全部小号紧凑同排，窄屏换行不增高；展开态点选 label 不收起）
+    // 三组各带一个小标题：三颗「全部」不再长得一样，看得出筛的是哪一维。
+    listGroupCaption(h, 'state'),
     ['all', 'open', 'closed', 'blocked', 'frontier'].map(function (k: any) {
       const on = st.stateFilter === k
       return h('span', chipProps({ key: 'stf-' + k, className: 'dsws-chip' + (on ? ' dsws-ink-on' : ''), 'data-ink-group': 'state', 'data-ink-bg': STATE_INK_BG, 'data-ink-bd': STATE_INK_BD, 'data-press': 'chip', 'data-log': 'list.filter.state.' + k, onClick: function (e: any) {
@@ -124,6 +149,7 @@ export const listFilterRowNode = function (h: any, st: any, colorOf: any, sorted
       }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? STATE_INK_BG : 'rgba(255,255,255,.06)', color: on ? ((typeof CONTAINER_ACCENT === 'object' && CONTAINER_ACCENT) ? CONTAINER_ACCENT.map : '') : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? STATE_INK_BD : 'rgba(255,255,255,.15)') } }), tr('list.state.' + k))
     }),
     h('span', { style: { width: 1, height: 12, background: 'var(--dsw-alias-border-l1,#2a2d35)', margin: '0 4px 3px', flex: 'none' } }),
+    listGroupCaption(h, 'sort'),
     ['updatedAt', 'createdAt', 'number', 'title'].map(function (k: any) {
       const on = st.sortKey === k
       const arrow = on ? (st.sortDir === 'asc' ? '↑' : '↓') : ''
@@ -136,6 +162,7 @@ export const listFilterRowNode = function (h: any, st: any, colorOf: any, sorted
       }, style: { cursor: 'pointer', marginRight: 4, marginBottom: 3, fontSize: 10, background: on ? SORT_INK_BG : 'rgba(255,255,255,.06)', color: on ? '#58a6ff' : 'var(--dsw-alias-label-secondary,#a1a1aa)', border: '1px solid ' + (on ? SORT_INK_BD : 'rgba(255,255,255,.15)') } }), tr('list.sort.' + k) + arrow)
     }),
     h('span', { style: { width: 1, height: 12, background: 'var(--dsw-alias-border-l1,#2a2d35)', margin: '0 4px 3px', flex: 'none' } }),
+    listGroupCaption(h, 'label'),
     chip(tr('list.all'), false, !st.lblFilters || !st.lblFilters.length, true, 0),
     // #405：filter row 默认可见数 9 → 4（与 per-row 一致）；+N 触发条件 + 数字同步
     (st.expLabels ? sortedLabels : sortedLabels.slice(0, 4)).map(function (nm: any, i: any) { return chip(nm, true, (st.lblFilters || []).indexOf(nm) >= 0, false, i) }),

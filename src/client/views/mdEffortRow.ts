@@ -165,6 +165,16 @@ export const mdEffortRowNode = function (h: any, st: any, effortNames: any, meas
     WebkitBoxDecorationBreak: 'slice',
   }
   return h('div', { 'data-dsh-md-effort-row': '1', style: rowStyle }, [
+    // 这一排开头的「全部」也要自报维度：它与下面状态、标签两组的「全部」长得一样，
+    // 不写小标题就分不清这一颗清的是哪一维（本次维护者反馈的原话：有三个「全部」，都不知道是怎么维度）。
+    // 本行只在这一维（工作单元）有多个值时才画，所以标题不会单独出现。
+    h('span', {
+      key: 'cap-effort',
+      style: {
+        display: 'inline', fontSize: MD_EFFORT_LABEL_FONT_SIZE, lineHeight: '14px',
+        marginRight: 6, color: 'var(--dsws-label-caption,#8b8b95)', userSelect: 'none',
+      },
+    }, tr('list.group.effort')),
     h('span', chipProps({
       key: 'eff-all',
       className: 'dsws-chip dsws-hov',

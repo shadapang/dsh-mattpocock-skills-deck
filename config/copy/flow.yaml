@@ -88,6 +88,10 @@ zh:
   list.filterActive: 当前过滤：
   list.filterClear: 清除全部
   list.filterRemoveAria: 移除过滤 {name}
+  list.group.state: 状态
+  list.group.sort: 排序
+  list.group.label: 标签
+  list.group.effort: 工作单元
   list.sort.updatedAt: 更新
   list.sort.createdAt: 创建
   list.sort.number: 编号
@@ -336,6 +340,10 @@ en:
   list.filterActive: "Active filters: "
   list.filterClear: Clear all
   list.filterRemoveAria: Remove filter {name}
+  list.group.state: State
+  list.group.sort: Sort
+  list.group.label: Labels
+  list.group.effort: Work unit
   list.sort.updatedAt: Updated
   list.sort.createdAt: Created
   list.sort.number: Number
