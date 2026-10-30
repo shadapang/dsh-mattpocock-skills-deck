@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T09:30:02.221Z",
+  "generatedAt": "2026-10-30T09:40:00.556Z",
   "generatedBy": "node scripts/gate-map.mts",
   "chainLength": 456,
   "gateCount": 456,
@@ -10,7 +10,7 @@
   "completionRecordedGates": 26,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 620,
+  "graphFileCount": 621,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -12626,9 +12626,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 641,
+    "fileCount": 642,
     "dirCount": 74,
-    "coveredFileCount": 641,
+    "coveredFileCount": 642,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 57,
@@ -12881,6 +12881,7 @@
       "src/deck/tools/issue-create-parts.ts",
       "src/deck/tools/issue-create.ts",
       "src/deck/tools/issue-get.ts",
+      "src/deck/tools/issue-list-session.ts",
       "src/deck/tools/issue-list.ts",
       "src/deck/tools/issue-patch-definition.ts",
       "src/deck/tools/issue-patch.ts",

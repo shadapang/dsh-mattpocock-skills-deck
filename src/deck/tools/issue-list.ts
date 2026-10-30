@@ -18,8 +18,9 @@ import { DECK_SANDBOX_TIMEOUT_MS } from '../../shared/time-config/src/values.js'
 import { withCap } from '../shell/capped-wait.js'
 // #1277：类型没标对的规格票靠票面文件头标记兜底认出来（与宿主快照组装层同一口径）。
 import { isSpecHeaderMarked } from '../../shared/issue-file/src/marker.js'
-// 票键归一与工作路线账页同一套口径（账页记 "1"、本地列表回 "01"），不复用的话两边永远对不上。
-import { chainTicketKey } from '../../refresh/kernel/refresh-chain.js'
+// scope=session 那一块（票键归一、目录比对、只读账页取数）单列一份，理由见该文件头（350 有效行上限）。
+import { SESSION_SCOPE_NOTE, hitSessionTicket, readSessionTickets } from './issue-list-session.js'
+import type { SessionTicketHit } from './issue-list-session.js'
 
 /**
  * 装配层注入的依赖袋。壳要用的键原样透传（没列的键也一律接受：壳自己还没标类型，这一层不替它把关）；
@@ -105,65 +106,6 @@ function rowKindOf(issue: Record<string, unknown> | null | undefined): string {
     if (isSpecHeaderMarked(issue.body)) return 'spec'
     return 'issue'
   } catch (e) { return 'issue' }
-}
-
-// ── scope=session：本会话碰过的票（只读工作路线账页，与列表求交） ────────────────────
-//
-// 账页里的一张票长这样：{ ticketKey, effortId }。票键先按链上的口径归一 —— 账页记的是 "1"
-// （去 #、去前导零），本地后端列表回的是 "01"，不归一永远对不上；归不动的（远端夹具里那种字母编号）
-// 原样去空白再比，免得把认不出的键当成「不是同一张票」。
-// 目录两边都认得出来时再比目录：本地后端每个 .scratch/<目录>/ 都有自己的 01 号票，只比编号会串目录。
-// 有一边不认识目录（远端后端、老记录、地图薄行）就只比编号 —— 那时没有更好的证据可用。
-
-/** 账页交回来的一张「本会话碰过的票」：ticketKey 已按链口径归一，effortId 空串表示单工作单元后端或老记录。 */
-interface SessionTicketHit { ticketKey: string; effortId: string }
-
-/** 会话视图那句说明（两条返回路共用一份，免得以后一边改了口径另一边没改）。 */
-const SESSION_SCOPE_NOTE = '这次只看本会话碰过的票（scope=session）：账页只认建票、改票（含认领）、建图、挂边这几类写事件，只上报与只读取不算；这一步只读账页，没有改动任何票文件。'
-
-/** 票键收口：链上口径认得出就用它，认不出就原样去空白、去井号。 */
-function normalizedTicketKey(raw: unknown): string {
-  const chained = chainTicketKey(raw)
-  if (chained !== '') return chained
-  return String(raw === undefined || raw === null ? '' : raw).trim().replace(/^#/, '')
-}
-
-/** 这一行票算不算「本会话碰过的那几张之一」（口径见上面那节注释）。 */
-function hitSessionTicket(row: Record<string, unknown>, hits: SessionTicketHit[]): boolean {
-  const key = normalizedTicketKey(row.key)
-  const effort = String(row.effortId === undefined || row.effortId === null ? '' : row.effortId)
-  for (const h of hits) {
-    if (normalizedTicketKey(h.ticketKey) !== key) continue
-    if (h.effortId && effort && h.effortId !== effort) continue
-    return true
-  }
-  return false
-}
-
-/**
- * scope=session 的取数：读本机工作路线账页（只读），拿本会话碰过的票。
- * 三种取不到分清楚说：没有会话号、装配没接上、账页读不出来；都不拿空名单冒充「一张也没碰过」。
- * 失败时回的原因码只从壳里登记过的那几个里挑（verify-1106 冻着这八个数）。
- */
-async function readSessionTickets(d: DeckIssueListDeps, sessionId: unknown, workspaceKey: unknown): Promise<{ ok: true; tickets: SessionTicketHit[] } | { ok: false; reason: string; text: string }> {
-  const sid = String(sessionId === undefined || sessionId === null ? '' : sessionId)
-  if (!sid) return { ok: false, reason: REFUSAL_REASONS.NO_SESSION, text: '这次没拿到会话号，所以给不出「本会话碰过的票」；不传 scope 或传 scope=all 可以看全部票。' }
-  const read = d.workRouteTickets
-  if (typeof read !== 'function') return { ok: false, reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED, text: '这次装配没有接上工作路线账页（workRouteTickets），所以给不出「本会话碰过的票」；不传 scope 或传 scope=all 可以看全部票。' }
-  let back: unknown = null
-  try { back = await read({ rootKey: String(workspaceKey === undefined || workspaceKey === null ? '' : workspaceKey), sessionId: sid }) } catch (e) { back = null }
-  const rec = (back && typeof back === 'object') ? back as Record<string, unknown> : {}
-  if (rec.ok !== true) return { ok: false, reason: REFUSAL_REASONS.BACKEND_UNSUPPORTED, text: '本机的工作路线账页这次读不出来（原因 ' + String(rec.reason || 'unknown') + '），所以给不出「本会话碰过的票」；不传 scope 或传 scope=all 可以看全部票。' }
-  const rows = Array.isArray(rec.tickets) ? rec.tickets : []
-  const tickets: SessionTicketHit[] = []
-  for (const r of rows) {
-    if (!r || typeof r !== 'object') continue
-    const t = r as Record<string, unknown>
-    const key = String(t.ticketKey === undefined || t.ticketKey === null ? '' : t.ticketKey)
-    if (!key) continue
-    tickets.push({ ticketKey: key, effortId: typeof t.effortId === 'string' ? t.effortId : '' })
-  }
-  return { ok: true, tickets: tickets }
 }
 
 /** 地图薄查认的标签（写死小写）：发给服务端的筛子与内存二次校验都用它，大小写输入先归一到它再比。 */
@@ -295,7 +237,7 @@ export function createDeckIssueList(deps?: DeckIssueListDeps) {
     // 纯读 —— 不写账页、不碰任何票文件；账页只认写类事件，list/get 本来就不入账。
     let sessionHits: SessionTicketHit[] | null = null
     if (scopeMode === 'session') {
-      const got = await readSessionTickets(d, s.sessionId, s.workspaceKey)
+      const got = await readSessionTickets(d.workRouteTickets, s.sessionId, s.workspaceKey)
       if (!got.ok) return shell.unsupported('deck_issue_list', got.reason, got.text, { workspace: { root: s.cwd, key: s.workspaceKey }, cost: { estimated: est } })
       sessionHits = got.tickets
     }
