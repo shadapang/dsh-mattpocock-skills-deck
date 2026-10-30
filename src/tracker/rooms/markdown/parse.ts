@@ -425,8 +425,18 @@ export function parseMd(text: unknown, meta: ParseMeta): Issue {
   // 没有这一行的老票（写的人还没经过这次改动）落到老口径：认领了、但这份文件没记下是谁，就诚实给空名字
   // ——「本地用户名或 ''」本来就是契约允许的值（contract/identity.ts 对 login 的说法），
   // 而 `@me` 是个占位符，它既不是调用方给的名字、也不是本地用户名。
-  // 没有 Status 行时仍然整个字段省略，表示「认领状态未知」，与 entities.ts 里 EMPTY 与省略的区别对齐。
-  if (statusRaw) {
+  // 没有 Status 行的票照样给出认领人（空数组 = 明确没人认领）。
+  //
+  // 这一格以前是「有 Status 行才挂 assignees，没有就整个字段省略」，理由是「认领状态未知」。
+  // 但本地 Markdown 的票面里，未开始且没人认领本来就写成「没有 Status 行」（原文 wayfinder 的
+  // Status 行只有 claimed/resolved 两档），所以「没有这一行」不是不知道，而是一个确定的意思。
+  // 省略字段会让 deck 的派生判定把它算成 indeterminate（不认识领态），结果是新建的子票
+  // 与所有没补过 Status 的老票都不进 frontier —— 实测一张地图 7 张子票全部被判 indeterminate、
+  // frontier 为 0（2026-10-30，票 #02）。认领态这个问题，本地这一侧总能回答，就不该说「不知道」。
+  //
+  // 顺序不变：有 Assignees 行（或 DSH-ASSIGNEES 注释）就原样读名字；没有这一行但写着 claimed，
+  // 仍给一个空名字表示「认领了、但没记下是谁」；其余（含没有 Status 行）都是空数组。
+  {
     const named = assigneesFromFile(raw)
     if (named.found) issue.assignees = named.value
     else if (statusNorm === 'claimed') issue.assignees = [{ login: '', kind: 'user' }]
