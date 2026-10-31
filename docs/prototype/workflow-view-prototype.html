@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 · 面板工作流视图（任务卡视图 ⇄ 工作流视图）</title>
+<!--
+  PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
+
+  这一页只回答一件事：面板「列表」里加一个「工作流视图」之后，长什么样、够不够用。
+    · 顶部右侧分段控件切「任务卡视图 / 工作流视图」，任务卡视图 = 现在的列表样子（不动）；
+    · 工作流视图 = 一条工作流一条泳道，票按依赖先后排成链，连线表示「先做这个才能做那个」；
+    · 三个工作流（三个项目）并列，各自可折叠；点卡片选中，底部出详情条；
+    · 右上角可切「宽面板 520 / 窄面板 330」，看窄态会不会塌。
+
+  数据是编的，形状照真实快照来的：每张票有 effortId（=工作流）、number、状态、blockedBy 依赖边。
+  真实落地的顺序口径：先按 blockedBy 拓扑，同层按票号升序，没有依赖的按编号。
+-->
+<style>
+:root{
+  --bg:#0c0e12; --panel:#16181d; --panel2:#1b1e24; --border:#2a2d35; --border2:#3a3f4a;
+  --text:#e6edf3; --muted:#a1a1aa; --caption:#8b8b95;
+  --purple:#c084fc; --green:#3fb950; --blue:#58a6ff; --amber:#fbbf24; --red:#f85149; --gray:#6e7681;
+  --mono:Consolas,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.stage{display:flex;gap:28px;align-items:flex-start;padding:22px 24px 60px}
+.aside{width:330px;flex:0 0 330px;color:var(--muted);font-size:12.5px}
+.aside h1{font-size:15px;color:var(--text);margin:0 0 8px}
+.aside b{color:#cdb8ff}
+.aside .row{margin:7px 0}
+.aside code{font-family:var(--mono);font-size:12px;color:#e6edf3;background:#1b1e24;border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+.aside ul{margin:6px 0 0;padding-left:16px}
+.aside li{margin:4px 0}
+
+/* ── 面板外壳：宽度可切 ── */
+.panel{width:520px;flex:0 0 auto;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:width .18s ease}
+.panel.narrow{width:330px}
+.panel-head{display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--border);background:#101216}
+.panel-title{font-weight:600;font-size:13px;letter-spacing:.2px}
+.panel-title .x{color:var(--caption);font-weight:400;margin-left:6px;font-size:12px}
+.head-actions{margin-left:auto;display:flex;gap:6px}
+.ico{border:1px solid var(--border2);background:#181b21;color:var(--muted);border-radius:5px;height:24px;min-width:24px;padding:0 6px;font-size:11px;cursor:pointer}
+.ico:hover{color:var(--text);border-color:#4a505d}
+.ico.on{color:#0c0e12;background:var(--purple);border-color:var(--purple);font-weight:600}
+
+/* ── 页签 ── */
+.tabs{display:flex;align-items:center;gap:2px;padding:6px 8px 0;border-bottom:1px solid var(--border)}
+.tab{border:0;background:transparent;color:var(--muted);font-size:12.5px;padding:6px 10px;border-radius:6px 6px 0 0;cursor:pointer;border-bottom:2px solid transparent}
+.tab.active{color:var(--text);border-bottom-color:var(--purple)}
+.tab:disabled{opacity:.45;cursor:default}
+
+/* ── 工具行：分段控件 + 状态筛 ── */
+.tools{display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--border2);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:#181b21;color:var(--muted);font-size:12px;padding:5px 10px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--border2)}
+.seg button.on{background:#2a2140;color:#e6dcff}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}
+.chip{border:1px solid var(--border2);background:#181b21;color:var(--muted);font-size:11.5px;border-radius:999px;padding:3px 9px;cursor:pointer;white-space:nowrap}
+.chip.on{border-color:var(--purple);color:#e6dcff;background:#241b36}
+.chip .n{font-family:var(--mono);font-size:11px;color:var(--caption);margin-left:4px}
+
+/* ── 主体：两种视图 ── */
+.body{padding:10px;max-height:620px;overflow:auto}
+.view{display:none}
+.view.on{display:block}
+
+/* 任务卡视图（现状）*/
+.group{margin-bottom:10px}
+.group-head{display:flex;align-items:center;gap:7px;padding:5px 4px;color:var(--caption);font-size:12px}
+.group-head .name{color:var(--text);font-weight:600;font-size:12.5px}
+.group-head .count{font-family:var(--mono);font-size:11px}
+.row{display:flex;align-items:center;gap:9px;padding:7px 9px;border:1px solid transparent;border-radius:8px;cursor:pointer}
+.row:hover{background:var(--panel2);border-color:var(--border)}
+.row .num{font-family:var(--mono);font-size:11.5px;color:var(--caption);width:26px;text-align:right;flex:0 0 auto}
+.row .t{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .meta{display:flex;gap:6px;align-items:center;flex:0 0 auto;font-size:11px;color:var(--caption)}
+
+/* 工作流视图 */
+.lane{border:1px solid var(--border);border-radius:10px;margin-bottom:10px;background:#13161b;overflow:hidden}
+.lane-head{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;user-select:none}
+.lane-head:hover{background:#171a20}
+.lane-head .chev{color:var(--caption);font-size:10px;transition:transform .15s}
+.lane.collapsed .lane-head .chev{transform:rotate(-90deg)}
+.lane-head .name{font-size:13px;font-weight:600}
+.lane-head .stat{font-family:var(--mono);font-size:11px;color:var(--caption)}
+.lane-head .bar{height:4px;width:56px;border-radius:3px;background:#23262e;overflow:hidden;margin-left:auto}
+.lane-head .bar i{display:block;height:100%;background:var(--green)}
+.canvas-wrap{overflow-x:auto;overflow-y:hidden;padding:6px 10px 12px}
+.lane.collapsed .canvas-wrap{display:none}
+.canvas{position:relative}
+.edges{position:absolute;inset:0;pointer-events:none;overflow:visible}
+.card{position:absolute;width:140px;border:1px solid var(--border2);border-radius:8px;background:#1b1e24;padding:7px 8px;cursor:pointer;transition:border-color .12s,box-shadow .12s}
+.card:hover{border-color:#5b6270}
+.card.sel{border-color:var(--purple);box-shadow:0 0 0 1px var(--purple) inset}
+.card .cn{font-family:var(--mono);font-size:10.5px;color:var(--caption);display:flex;align-items:center;gap:5px}
+.card .ct{font-size:12px;line-height:1.35;margin-top:2px;height:32px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.card .cf{display:flex;align-items:center;gap:6px;margin-top:5px;font-size:10.5px;color:var(--caption)}
+.card[data-status=closed]{opacity:.62}
+.card[data-status=closed] .ct{text-decoration:line-through;text-decoration-color:#3a3f4a}
+.card[data-status=running]{border-color:#2f5b86;background:#18222c}
+.card[data-status=blocked]{background:#1d1b16;border-color:#4a4026}
+.card[data-status=ready]{background:#1b1a24;border-color:#3f3358}
+.card[data-status=blocked] .ct,.card[data-status=blocked] .cn{color:#8d8574}
+
+/* 状态点与标签 */
+.dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;display:inline-block}
+.dot.closed{background:var(--green)} .dot.running{background:var(--blue)} .dot.ready{background:var(--purple)} .dot.blocked{background:var(--gray)}
+.pill{font-size:10.5px;border-radius:999px;padding:1px 7px;border:1px solid var(--border2);color:var(--muted);white-space:nowrap}
+.pill.closed{color:#8ee6a0;border-color:#2c5138;background:#16251b}
+.pill.running{color:#a8cdff;border-color:#2b4766;background:#161f29}
+.pill.ready{color:#dcc6ff;border-color:#4a3a6b;background:#211a2e}
+.pill.blocked{color:#d8c58a;border-color:#4a4026;background:#221d12}
+.acc{font-family:var(--mono);font-size:10px;color:var(--caption)}
+
+/* 底部详情条 */
+.detail{border-top:1px solid var(--border);background:#101216;padding:9px 11px;display:none}
+.detail.on{display:block}
+.detail .dt{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600}
+.detail .dm{display:flex;gap:10px;flex-wrap:wrap;color:var(--caption);font-size:11.5px;margin-top:5px}
+.detail ul{margin:7px 0 0;padding-left:16px;color:var(--muted);font-size:11.5px}
+.detail li{margin:2px 0}
+.detail .empty{color:var(--caption);font-size:12px}
+.hint{color:var(--caption);font-size:11.5px;padding:2px 2px 0}
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- ── 左侧：这页在说什么、看哪里 ── -->
+  <aside class="aside">
+    <h1>原型：面板工作流视图</h1>
+    <div class="row">右上角切 <b>宽 / 窄</b> 面板宽度；面板顶部 <b>任务卡视图 ⇄ 工作流视图</b> 切换。</div>
+    <div class="row"><b>任务卡视图</b>：现在的列表，一行一张票，按工作流分组 —— 这次不动它。</div>
+    <div class="row"><b>工作流视图</b>：一条工作流一条泳道；票按 <code>blockedBy</code> 排成链，箭头 =「先做这个才能做那个」；三条工作流并列，各自可折叠。</div>
+    <ul>
+      <li>点卡片选中，底部出详情条（含验收项与阻塞来源）</li>
+      <li>状态：<span class="pill closed">已关闭</span> <span class="pill running">进行中</span> <span class="pill ready">可做</span> <span class="pill blocked">被阻塞</span></li>
+      <li>状态筛选与列表共用一套；切视图不丢筛选</li>
+      <li>窄面板（330）下卡片自动换行、泳道可横向滑</li>
+    </ul>
+    <div class="row" style="margin-top:12px">顺序口径（落地时）：先按依赖拓扑，同层按票号升序，无依赖按编号。</div>
+  </aside>
+
+  <!-- ── 右侧：面板本体 ── -->
+  <section class="panel" id="panel">
+    <div class="panel-head">
+      <span class="panel-title">MattSkills <span class="x">×</span></span>
+      <div class="head-actions">
+        <button class="ico" title="刷新">⟳ 刷新</button>
+        <button class="ico" id="w-wide" onclick="setWidth(false)">宽</button>
+        <button class="ico" id="w-narrow" onclick="setWidth(true)">窄</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active">列表</button>
+      <button class="tab" disabled>技能</button>
+      <button class="tab" disabled>版本管理</button>
+      <button class="tab" disabled>环境检查</button>
+    </div>
+
+    <div class="tools">
+      <div class="seg" id="seg">
+        <button class="on" data-view="cards" onclick="setView('cards')">任务卡视图</button>
+        <button data-view="flow" onclick="setView('flow')">工作流视图</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <div class="body">
+      <div class="view on" id="view-cards"></div>
+      <div class="view" id="view-flow"></div>
+    </div>
+
+    <div class="detail" id="detail">
+      <div class="empty">点一张卡片看详情（在任务卡视图里点行也一样）</div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ── 编造但形状真实的数据：effortId = 工作流，blockedBy = 依赖边 ── */
+const DATA = [
+  {
+    id: 'w1', name: '总仓补货水位（项目 A）', tickets: [
+      { key: '01', title: '导出 4.12 配送中心库存汇总表', status: 'closed', assignee: 'lead', acc: [1, 1], blockedBy: [] },
+      { key: '02', title: '解析 2.5 仓库管理规则里的 (s,S) 参数', status: 'closed', assignee: 'lead', acc: [1, 1], blockedBy: ['01'] },
+      { key: '03', title: '算 ROP / 目标 S / 可供 / 缺口', status: 'running', assignee: 'lead', acc: [1, 3], blockedBy: ['02'] },
+      { key: '04', title: '按缺口分档：待补 / 低于目标 / 达标 / 压货', status: 'ready', assignee: '', acc: [0, 2], blockedBy: ['03'] },
+      { key: '05', title: '出水位报告并归档证据', status: 'blocked', assignee: '', acc: [0, 3], blockedBy: ['04'] },
+    ]
+  },
+  {
+    id: 'w2', name: '台账倒挤成本（项目 B）', tickets: [
+      { key: '01', title: '确认 01_进销存 缺哪几组字段', status: 'closed', assignee: 'lead', acc: [2, 2], blockedBy: [] },
+      { key: '02', title: '直调 / 调拨入库补进台账', status: 'running', assignee: 'lead', acc: [1, 2], blockedBy: ['01'] },
+      { key: '03', title: '盘点 ≡ 05 但台账对不上：定位差异', status: 'ready', assignee: '', acc: [0, 2], blockedBy: ['01'] },
+      { key: '04', title: '重算月度成本并给出可用性结论', status: 'blocked', assignee: '', acc: [0, 3], blockedBy: ['02', '03'] },
+    ]
+  },
+  {
+    id: 'w3', name: '面板工作流视图（项目 C）', tickets: [
+      { key: '01', title: '原型：任务卡 / 工作流两视图', status: 'running', assignee: 'lead', acc: [0, 2], blockedBy: [] },
+      { key: '02', title: 'WorkflowView 组件：拓扑 + 连线', status: 'blocked', assignee: '', acc: [0, 3], blockedBy: ['01'] },
+      { key: '03', title: '接线到 ListTab 并记住视图选择', status: 'blocked', assignee: '', acc: [0, 2], blockedBy: ['02'] },
+      { key: '04', title: '门禁：顺序、连线、窄态', status: 'blocked', assignee: '', acc: [0, 3], blockedBy: ['03'] },
+    ]
+  },
+]
+
+const STATUS_LABEL = { closed: '已关闭', running: '进行中', ready: '可做', blocked: '被阻塞' }
+const CARD_W = 140, CARD_H = 76, GAP_X = 34, GAP_Y = 14, PAD = 4
+
+let view = 'cards'
+let filter = 'all'
+let selected = null
+const collapsed = {}
+
+/* ── 拓扑分层：depth = 依赖里最深的那个 + 1 ── */
+function depths(tickets) {
+  const map = new Map(tickets.map(t => [t.key, t]))
+  const out = new Map()
+  const see = (k, stack) => {
+    if (out.has(k)) return out.get(k)
+    if (stack.has(k)) return 0
+    const t = map.get(k)
+    if (!t) return 0
+    stack.add(k)
+    let d = 0
+    for (const b of t.blockedBy || []) d = Math.max(d, see(b, stack) + 1)
+    stack.delete(k)
+    out.set(k, d)
+    return d
+  }
+  for (const t of tickets) see(t.key, new Set())
+  return out
+}
+
+function statusOf(t) {
+  if (t.status === 'blocked') {
+    // 演示：被阻塞 = 有前置还没关闭
+    const all = DATA.flatMap(w => w.tickets)
+    const open = (t.blockedBy || []).some(k => (all.find(x => x.key === k) || {}).status !== 'closed')
+    return open ? 'blocked' : 'ready'
+  }
+  return t.status
+}
+
+function visible(t) { return filter === 'all' || statusOf(t) === filter }
+
+/* ── 任务卡视图（现状样子）── */
+function renderCards() {
+  const host = document.getElementById('view-cards')
+  host.innerHTML = DATA.map(w => {
+    const rows = w.tickets.filter(visible)
+    if (!rows.length) return ''
+    return `<div class="group">
+      <div class="group-head"><span class="name">${w.name}</span><span class="count">${rows.length} / ${w.tickets.length}</span></div>
+      ${rows.map(t => `<div class="row" onclick="select('${w.id}','${t.key}')">
+        <span class="num">${t.key}</span>
+        <span class="dot ${statusOf(t)}"></span>
+        <span class="t">${t.title}</span>
+        <span class="meta"><span class="acc">${t.acc[0]}/${t.acc[1]}</span><span class="acc">${t.assignee || '—'}</span></span>
+      </div>`).join('')}
+    </div>`
+  }).join('') || '<div class="hint">这个状态筛选下没有票。</div>'
+}
+
+/* ── 工作流视图 ── */
+function renderFlow() {
+  const host = document.getElementById('view-flow')
+  host.innerHTML = DATA.map(w => {
+    const rows = w.tickets.filter(visible)
+    const closed = w.tickets.filter(t => statusOf(t) === 'closed').length
+    const pct = Math.round(closed / w.tickets.length * 100)
+    const isCollapsed = collapsed[w.id] === true
+    return `<div class="lane ${isCollapsed ? 'collapsed' : ''}" data-lane="${w.id}">
+      <div class="lane-head" onclick="toggleLane('${w.id}')">
+        <span class="chev">▾</span>
+        <span class="name">${w.name}</span>
+        <span class="stat">${closed}/${w.tickets.length} 已关闭</span>
+        <span class="bar"><i style="width:${pct}%"></i></span>
+      </div>
+      <div class="canvas-wrap">${rows.length ? laneCanvas(w, rows) : '<div class="hint">这个状态筛选下没有票。</div>'}</div>
+    </div>`
+  }).join('')
+}
+
+function laneCanvas(w, rows) {
+  const dep = depths(w.tickets)
+  const cols = new Map()
+  for (const t of rows) {
+    const d = dep.get(t.key) || 0
+    if (!cols.has(d)) cols.set(d, [])
+    cols.get(d).push(t)
+  }
+  const pos = new Map()
+  let maxY = 0
+  for (const [d, list] of [...cols.entries()].sort((a, b) => a[0] - b[0])) {
+    list.forEach((t, i) => {
+      const x = PAD + d * (CARD_W + GAP_X)
+      const y = PAD + i * (CARD_H + GAP_Y)
+      pos.set(t.key, { x, y })
+      maxY = Math.max(maxY, y + CARD_H)
+    })
+  }
+  const width = PAD * 2 + Math.max(...[...pos.values()].map(p => p.x + CARD_W))
+  const height = PAD * 2 + maxY
+
+  // 连线：只画跨卡依赖（A → B），起点 A 右缘中点，终点 B 左缘中点，三次贝塞尔
+  let paths = ''
+  const allKeys = new Set(rows.map(t => t.key))
+  for (const t of rows) {
+    for (const b of t.blockedBy || []) {
+      if (!allKeys.has(b)) continue
+      const a = pos.get(b), c = pos.get(t.key)
+      if (!a || !c) continue
+      const x1 = a.x + CARD_W, y1 = a.y + CARD_H / 2
+      const x2 = c.x, y2 = c.y + CARD_H / 2
+      const mx = (x1 + x2) / 2
+      const done = (rows.find(r => r.key === b) || {}).status === 'closed'
+      const color = done ? '#3a4a3e' : '#4a4258'
+      paths += `<path d="M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}" fill="none" stroke="${color}" stroke-width="1.4" marker-end="url(#arrow)"/>`
+    }
+  }
+
+  const cards = rows.map(t => {
+    const p = pos.get(t.key)
+    const st = statusOf(t)
+    return `<div class="card ${selected === w.id + '/' + t.key ? 'sel' : ''}" data-status="${st}"
+      style="left:${p.x}px;top:${p.y}px" onclick="select('${w.id}','${t.key}')">
+      <div class="cn"><span class="dot ${st}"></span>${t.key}<span class="acc" style="margin-left:auto">${t.acc[0]}/${t.acc[1]}</span></div>
+      <div class="ct">${t.title}</div>
+      <div class="cf"><span class="pill ${st}">${STATUS_LABEL[st]}</span><span class="acc" style="margin-left:auto">${t.assignee || '未认领'}</span></div>
+    </div>`
+  }).join('')
+
+  return `<div class="canvas" style="width:${width}px;height:${height}px">
+    <svg class="edges" width="${width}" height="${height}">
+      <defs><marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M0 0 L8 4 L0 8 z" fill="#5a5468"/></marker></defs>
+      ${paths}
+    </svg>
+    ${cards}
+  </div>`
+}
+
+/* ── 交互 ── */
+function setView(v) {
+  view = v
+  document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('on', b.dataset.view === v))
+  document.getElementById('view-cards').classList.toggle('on', v === 'cards')
+  document.getElementById('view-flow').classList.toggle('on', v === 'flow')
+  render()
+}
+function setWidth(narrow) {
+  document.getElementById('panel').classList.toggle('narrow', narrow)
+  document.getElementById('w-narrow').classList.toggle('on', narrow)
+  document.getElementById('w-wide').classList.toggle('on', !narrow)
+  render()
+}
+function toggleLane(id) { collapsed[id] = !collapsed[id]; renderFlow() }
+function setFilter(f) {
+  filter = f
+  renderChips()
+  render()
+}
+function select(wid, key) {
+  selected = wid + '/' + key
+  const w = DATA.find(x => x.id === wid)
+  const t = w.tickets.find(x => x.key === key)
+  const st = statusOf(t)
+  const blockers = (t.blockedBy || []).map(k => {
+    const b = w.tickets.find(x => x.key === k) || DATA.flatMap(x => x.tickets).find(x => x.key === k)
+    return b ? `${b.key} ${b.title}（${STATUS_LABEL[statusOf(b)]}）` : k
+  })
+  const el = document.getElementById('detail')
+  el.classList.add('on')
+  el.innerHTML = `<div class="dt"><span class="dot ${st}"></span>${w.name} · ${t.key} ${t.title}</div>
+    <div class="dm"><span class="pill ${st}">${STATUS_LABEL[st]}</span>
+      <span>验收 ${t.acc[0]}/${t.acc[1]}</span><span>负责人 ${t.assignee || '未认领'}</span>
+      <span>前置 ${blockers.length || '无'}</span></div>
+    ${blockers.length ? `<ul>${blockers.map(b => `<li>被阻塞于：${b}</li>`).join('')}</ul>` : ''}`
+  render()
+}
+function renderChips() {
+  const all = DATA.flatMap(w => w.tickets)
+  const counts = { all: all.length }
+  for (const t of all) counts[statusOf(t)] = (counts[statusOf(t)] || 0) + 1
+  const items = [['all', '全部'], ['ready', '可做'], ['running', '进行中'], ['blocked', '被阻塞'], ['closed', '已关闭']]
+  document.getElementById('chips').innerHTML = items.map(([k, label]) =>
+    `<button class="chip ${filter === k ? 'on' : ''}" onclick="setFilter('${k}')">${label}<span class="n">${counts[k] || 0}</span></button>`).join('')
+}
+function render() {
+  if (view === 'cards') renderCards()
+  else renderFlow()
+}
+
+renderChips()
+setWidth(false)
+render()
+</script>
+</body>
+</html>
