@@ -1,16 +1,16 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-30T14:59:09.508Z",
+  "generatedAt": "2026-10-31T01:24:50.029Z",
   "generatedBy": "node scripts/gate-map.mts",
-  "chainLength": 459,
-  "gateCount": 459,
-  "attributedGates": 410,
+  "chainLength": 460,
+  "gateCount": 460,
+  "attributedGates": 411,
   "unattributedGates": 49,
   "buildOutputOnlyGates": 21,
   "completionRecordedGates": 26,
   "smokeLength": 5,
   "smokeCompletionRecordedGates": 2,
-  "graphFileCount": 624,
+  "graphFileCount": 625,
   "gates": [
     {
       "step": "node tests/verify-1207-splice-ts.ts",
@@ -4801,6 +4801,24 @@
       "completionRecord": false,
       "expectedAssertions": 0,
       "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 2 条"
+    },
+    {
+      "step": "node tests/verify-1690-log-rotation.ts",
+      "file": "tests/verify-1690-log-rotation.ts",
+      "guards": [
+        "src/host/index.ts",
+        "src/host/logFsPort.ts",
+        "tests/lib/source-text.ts"
+      ],
+      "dirs": [
+        "src/host",
+        "tests/lib"
+      ],
+      "unattributed": false,
+      "buildOutputOnly": false,
+      "completionRecord": false,
+      "expectedAssertions": 0,
+      "reason": "归属来自：读文件调用（readFileSync / readFile / path.join(ROOT, ...)） 1 条；源码里的路径字面量 3 条"
     },
     {
       "step": "node tests/verify-3-workspace-switch.ts",
@@ -11631,6 +11649,7 @@
       "node tests/verify-1641-listed-workspace-flags.ts",
       "node tests/verify-1642-toggle-logs.ts",
       "node tests/verify-1654-ws-pending-hint.ts",
+      "node tests/verify-1690-log-rotation.ts",
       "node tests/verify-3-workspace-switch.ts",
       "node tests/verify-497-slash.ts",
       "node tests/verify-596-rpc-carrier.ts",
@@ -12559,6 +12578,7 @@
       "node tests/verify-1642-toggle-logs.ts",
       "node tests/verify-1654-ws-pending-hint.ts",
       "node tests/verify-1672-auto-open.ts",
+      "node tests/verify-1690-log-rotation.ts",
       "node tests/verify-423-title-clamp-browser.ts",
       "node tests/verify-423-title-clamp.ts",
       "node tests/verify-530-pr-tab.ts",
@@ -12689,9 +12709,9 @@
   },
   "coverage": {
     "sourceRoot": "src",
-    "fileCount": 645,
+    "fileCount": 646,
     "dirCount": 74,
-    "coveredFileCount": 645,
+    "coveredFileCount": 646,
     "ungatedFileCount": 0,
     "ungatedDirCount": 0,
     "dedicatedDirCount": 57,
@@ -12974,6 +12994,7 @@
       "src/host/index.ts",
       "src/host/issuePage.ts",
       "src/host/logFromPackage.ts",
+      "src/host/logFsPort.ts",
       "src/host/mapBody.ts",
       "src/host/mapTickets.ts",
       "src/host/namingGuardian.ts",
