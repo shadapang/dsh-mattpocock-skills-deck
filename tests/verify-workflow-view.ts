@@ -147,9 +147,11 @@ console.log('== ⑥ 折叠与「执行全部」按钮的接线 ==')
   const yaml = sourceText('config/copy/flow.yaml')
   check(/st\.wfFold/.test(view), '⑥ 折叠状态落在会话状态（st.wfFold[effortId]），不新增票字段')
   check(/inject\(st, workflowRunPromptOf\(lane/.test(view), '⑥ 执行全部把这条泳道的提示词注入当前会话')
-  check(/tr\('wf\.runAll'\)/.test(view) && /tr\('wf\.noneLeft'\)/.test(view), '⑥ 按钮文案走词表')
+  check(/tr\('wf\.runLane'/.test(view) && /tr\('wf\.runLaneShort'/.test(view), '⑥ 执行入口文案走词表（宽 / 窄两套）')
+  check(/tr\('wf\.pct'/.test(view) && /tr\('wf\.pctRunning'/.test(view), '⑥ 泳道头两行：进度 / 在做什么')
+  check(/tr\('wf\.foldedNext'/.test(view) && /tr\('wf\.foldedDone'/.test(view), '⑥ 折叠行说清「下一站」与「全完成」')
   check(/tr\('wf\.summary'/.test(view), '⑥ 折叠后仍给出可接/排队/被挡的摘要')
-  check((yaml.split('wf.runAll:').length - 1) === 2 && (yaml.split('wf.summary:').length - 1) === 2, '⑥ 词表 zh / en 两段都补齐了新键')
+  check(['wf.runLane:', 'wf.runLaneN:', 'wf.runLaneShort:', 'wf.pct:', 'wf.pctRunning:', 'wf.foldedNext:', 'wf.foldedDone:', 'wf.summary:'].every((k) => (yaml.split(k).length - 1) === 2), '⑥ 词表 zh / en 两段都补齐了新键')
 }
 
 console.log('== ⑦ 渲染冒烟：折叠、执行全部、全部完成三态 ==')
@@ -208,24 +210,29 @@ console.log('== ⑦ 渲染冒烟：折叠、执行全部、全部完成三态 ==
   const head = nodes.find((n: any) => n.props && n.props['data-log'] === 'list.wf.fold')
   const runBtn = nodes.find((n: any) => n.props && n.props['data-log'] === 'list.wf.runAll')
   check(!!head && textOf(head).indexOf('▾') >= 0, '⑦ 泳道头带展开箭头（默认展开）')
-  check(!!runBtn && textOf(runBtn).indexOf('wf.runAll · 2') >= 0, '⑦ 执行全部按钮带剩余张数（2 张）')
+  check(textOf(head).indexOf('wf.pct') >= 0, '⑦ 泳道头第二行是进度（4 / 8 已完成）')
+  check(!!runBtn && textOf(runBtn).indexOf('wf.runLane') >= 0, '⑦ 执行入口是 B 的头：按这条工作流执行')
   check(nodes.some((n: any) => String(n.props && n.props.key || '').indexOf('wf-card-w1-2') === 0), '⑦ 展开时画卡片')
+  const narrowNodes = nodesOf((wfMod as any).WorkflowViewNode(st, true))
+  check(narrowNodes.some((n: any) => textOf(n).indexOf('wf.runLaneShort') >= 0), '⑦ 窄面板执行入口收成「执行 · N」')
 
   runBtn.props.onClick({ stopPropagation: () => {} })
-  check(injected.length === 1 && injected[0].indexOf('#2') >= 0, '⑦ 点执行全部注入提示词（含 #2）')
-  check(emitted === 0, '⑦ 点执行全部不会误折叠（stopPropagation）')
+  check(injected.length === 1 && injected[0].indexOf('#2') >= 0, '⑦ 点执行注入提示词（含 #2）')
+  check(emitted === 0, '⑦ 点执行不会误折叠（stopPropagation）')
 
   head.props.onClick({ stopPropagation: () => {} })
   check(st.wfFold && st.wfFold.w1 === true && emitted === 1, '⑦ 点泳道头折叠，状态落在 st.wfFold')
   const foldedNodes = nodesOf(render(st))
   check(!foldedNodes.some((n: any) => String(n.props && n.props.key || '').indexOf('wf-card-w1-') === 0), '⑦ 折叠后卡片一条都不画')
-  check(foldedNodes.some((n: any) => textOf(n).indexOf('wf.summary') >= 0 || (n.props && n.props['data-log'] === 'list.wf.fold')), '⑦ 折叠后仍保留泳道头（可再展开）')
+  check(foldedNodes.some((n: any) => textOf(n).indexOf('wf.foldedNext') >= 0), '⑦ 折叠行给出「下一站」')
+  check(foldedNodes.some((n: any) => textOf(n).indexOf('wf.summary') >= 0), '⑦ 折叠行给出可接/排队/被挡摘要')
+  check(foldedNodes.some((n: any) => n.props && n.props['data-log'] === 'list.wf.runAll'), '⑦ 折叠后执行入口仍在（可以在折叠状态直接开跑）')
 
   const done = render({ snapshot: { issues: [
     { number: 1, title: 'a', state: 'CLOSED', effortId: 'w1', assignees: [], blockedBy: [] },
   ] } })
   const doneNodes = nodesOf(done)
-  check(!doneNodes.some((n: any) => n.props && n.props['data-log'] === 'list.wf.runAll'), '⑦ 全部完成时不再给执行全部按钮')
+  check(!doneNodes.some((n: any) => n.props && n.props['data-log'] === 'list.wf.runAll'), '⑦ 全部完成时不再给执行入口')
   check(doneNodes.some((n: any) => textOf(n).indexOf('wf.noneLeft') >= 0), '⑦ 全部完成时显示全部完成')
 }
 

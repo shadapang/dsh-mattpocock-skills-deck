@@ -51,9 +51,15 @@ zh:
   list.viewFlow: 工作流
   wf.fold: 收起
   wf.unfold: 展开
-  wf.runAll: 执行全部
+  wf.runLane: 按这条工作流执行
+  wf.runLaneN: "{n} 张"
+  wf.runLaneShort: 执行 · {n}
   wf.runAllTitle: 按依赖顺序推进这条工作流剩下的任务卡（一次最多 2 张，逐张验收）
   wf.noneLeft: 全部完成
+  wf.pct: "{closed} / {total} 已完成"
+  wf.pctRunning: "{closed} / {total} 已完成 · 在做 {running}"
+  wf.foldedNext: 已折叠 · 下一站 {next}
+  wf.foldedDone: 已折叠 · 全部完成 {closed}/{total}
   wf.summary: "可接 {ready} · 排队 {queued} · 被挡 {blocked}"
   list.closedN: 已关闭 {n}（已加载 {x}）
   list.partial: 这份清单不全
@@ -307,9 +313,15 @@ en:
   list.viewFlow: Workflow
   wf.fold: Collapse
   wf.unfold: Expand
-  wf.runAll: Run all
+  wf.runLane: Run this workflow
+  wf.runLaneN: "{n} left"
+  wf.runLaneShort: Run · {n}
   wf.runAllTitle: Advance the remaining tickets of this workflow in dependency order (at most 2 at a time, each verified)
   wf.noneLeft: All done
+  wf.pct: "{closed} / {total} done"
+  wf.pctRunning: "{closed} / {total} done · {running} in progress"
+  wf.foldedNext: Collapsed · next {next}
+  wf.foldedDone: Collapsed · all done {closed}/{total}
   wf.summary: "{ready} ready · {queued} queued · {blocked} blocked"
   list.closedN: Closed {n} ({x} loaded)
   list.partial: This list is incomplete

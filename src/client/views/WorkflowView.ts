@@ -77,7 +77,7 @@ const wfCardNode = function (st: any, effortId: string, card: any, narrow: boole
     h('div', { key: 'cn', style: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: '#8b8b95', fontFamily: 'Consolas,"SF Mono",Menlo,monospace' } }, [
       h('span', { key: 'd', style: { width: 7, height: 7, borderRadius: '50%', background: s.color, flex: 'none' } }),
       h('span', { key: 'n' }, '#' + card.key),
-      h('span', { key: 's', style: { marginLeft: 'auto', color: s.color } }, s.text),
+      h('span', { key: 's', style: { marginLeft: 'auto', color: s.color, background: s.bg, border: '1px solid ' + s.border, borderRadius: 4, padding: '0 5px', fontSize: 10.5 } }, s.text),
     ]),
     h('div', {
       key: 't',
@@ -119,7 +119,7 @@ export const WorkflowViewNode = function (st: any, narrow: boolean): any {
     return h('div', { key: 'wf-empty', style: { fontSize: 12, color: '#a1a1aa', padding: '14px 0', textAlign: 'center' } }, '这条工作区里还没有任务卡')
   }
 
-  return h('div', { key: 'wf-root', style: { display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 } }, lanes.map(function (lane: any) {
+  return h('div', { key: 'wf-root', style: { display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 4 } }, lanes.map(function (lane: any) {
     const name = lane.effortId || '本工作区'
     // 按依赖深度分层：同层并排，层与层之间一条竖线
     const layers: any[] = []
@@ -132,7 +132,8 @@ export const WorkflowViewNode = function (st: any, narrow: boolean): any {
     for (let d = 0; d < layers.length; d++) {
       const row = layers[d] || []
       if (!row.length) continue
-      body.push(wfConnNode('conn-' + lane.effortId + '-' + d, prevDone && row.every(function (c: any) { return c.state === 'closed' })))
+      // 只在层与层之间画竖线；第一层上面不画（A 原型的口径）。
+      if (d > 0) body.push(wfConnNode('conn-' + lane.effortId + '-' + d, prevDone && row.every(function (c: any) { return c.state === 'closed' })))
       body.push(h('div', {
         key: 'layer-' + lane.effortId + '-' + d,
         style: { display: 'flex', flexDirection: narrow ? 'column' : 'row', gap: 8, alignItems: 'stretch' },
@@ -145,15 +146,25 @@ export const WorkflowViewNode = function (st: any, narrow: boolean): any {
     const folded: boolean = !!(st && st.wfFold && st.wfFold[lane.effortId])
     const remaining: number = Math.max(0, lane.total - lane.closed)
     // 折叠状态只落在会话状态里（st.wfFold[effortId]），不新增票字段、不写文件；
-    //   点整条泳道头也能折，点里面的「执行全部」不折（stopPropagation）。
+    //   点整条泳道头也能折，点里面的「按这条工作流执行」不折（stopPropagation）。
     const toggleFold = function () {
       st.wfFold = Object.assign({}, (st && st.wfFold) || {}, { [lane.effortId]: !folded })
       try { if (typeof emit === 'function') emit(st) } catch (e) {}
     }
+    // B 的头：名字 + 进度一行；CTA 在右侧（窄态收成「执行 · N」）。
+    const pctText = lane.running
+      ? tr('wf.pctRunning', { closed: lane.closed, total: lane.total, running: lane.running })
+      : tr('wf.pct', { closed: lane.closed, total: lane.total })
+    const runLabel = narrow ? tr('wf.runLaneShort', { n: remaining }) : tr('wf.runLane')
+    // 折叠后仍要回答「还剩什么」：下一站 + 可接/排队/被挡摘要；全完成时直接说完成。
+    const foldedText = remaining === 0
+      ? tr('wf.foldedDone', { closed: lane.closed, total: lane.total })
+      : tr('wf.foldedNext', { next: focus ? ('#' + focus.key + ' ' + focus.title) : '—' }) +
+        ' · ' + tr('wf.summary', { ready: lane.ready, queued: lane.queued, blocked: lane.blocked })
     return h('div', {
       key: 'lane-' + lane.effortId,
       className: 'dsws-wflane',
-      style: { border: '1px solid #2a2d35', borderRadius: 10, background: '#13161b', padding: 10 },
+      style: { border: '1px solid #2a2d35', borderRadius: 12, background: 'linear-gradient(180deg,#151821,#111319)', padding: 12, marginBottom: 0 },
     }, [
       h('div', {
         key: 'head',
@@ -161,33 +172,43 @@ export const WorkflowViewNode = function (st: any, narrow: boolean): any {
         'data-press': 'button',
         'data-log': 'list.wf.fold',
         onClick: toggleFold,
-        style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer', userSelect: 'none' },
+        style: { display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 4, cursor: 'pointer', userSelect: 'none' },
       }, [
-        h('span', { key: 'chev', 'aria-label': tr(folded ? 'wf.unfold' : 'wf.fold'), style: { fontSize: 10, color: '#8b8b95', flex: 'none', width: 10 } }, folded ? '▸' : '▾'),
-        h('span', { key: 'n', style: { fontSize: 13, fontWeight: 600, color: '#e6edf3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, name),
-        h('span', { key: 's', style: { fontSize: 11, color: '#8b8b95', fontFamily: 'Consolas,"SF Mono",Menlo,monospace', marginLeft: 'auto', flex: 'none' } },
-          '已完成 ' + lane.closed + '/' + lane.total + (lane.running ? ' · 在做 ' + lane.running : '') + (lane.queued ? ' · 排队 ' + lane.queued : '')),
+        h('div', { key: 'info', style: { flex: '1 1 auto', minWidth: 0 } }, [
+          h('div', { key: 'nm', style: { fontSize: 13.5, fontWeight: 600, color: '#e6edf3', letterSpacing: 0.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, [
+            h('span', { key: 'chev', 'aria-label': tr(folded ? 'wf.unfold' : 'wf.fold'), style: { fontSize: 10, color: '#8b8b95', marginRight: 6 } }, folded ? '▸' : '▾'),
+            name,
+          ]),
+          h('div', { key: 'pct', style: { fontFamily: 'Consolas,"SF Mono",Menlo,monospace', fontSize: 11, color: '#8b8b95', marginTop: 2 } }, pctText),
+        ]),
         // 「按工作流执行」：把这条工作流剩下的票按依赖顺序写进提示词，注入当前会话，
         //   由宿主按 build 里的编排协议派子代理、逐张验收；脚本不越过门禁自己起进程。
         remaining > 0
           ? h(Tip, { key: 'run', content: tr('wf.runAllTitle') }, h('button', {
-            className: 'dsws-btn primary dsws-hov',
+            className: 'dsws-btn dsws-hov',
             'data-press': 'button',
             'data-log': 'list.wf.runAll',
             onClick: function (e: any) {
               e.stopPropagation()
               try { inject(st, workflowRunPromptOf(lane, (typeof promptLang === 'function' ? promptLang() : 'zh'))) } catch (e2) {}
             },
-            style: { fontSize: 11, padding: '0 8px', height: 22, flex: 'none' },
-          }, tr('wf.runAll') + ' · ' + remaining))
-          : h('span', { key: 'none', style: { fontSize: 11, color: '#3fb950', flex: 'none' } }, tr('wf.noneLeft')),
+            style: { marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, background: '#7c5bd6', color: '#fff', border: 'none', borderRadius: 8, height: narrow ? 26 : 30, padding: narrow ? '0 9px' : '0 12px', fontSize: narrow ? 11.5 : 12, fontWeight: 600, flex: 'none', cursor: 'pointer', boxShadow: '0 0 0 1px #9d7ff0 inset' },
+          }, narrow ? ('▶ ' + runLabel) : ['▶ ' + runLabel + ' ', h('span', { key: 'n', style: { opacity: 0.75, fontWeight: 400 } }, tr('wf.runLaneN', { n: remaining }))]))
+          : h('button', {
+            key: 'done',
+            disabled: true,
+            style: { marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', color: '#3fb950', border: '1px solid #2c5138', borderRadius: 8, height: narrow ? 26 : 30, padding: narrow ? '0 9px' : '0 12px', fontSize: narrow ? 11.5 : 12, fontWeight: 600, flex: 'none', cursor: 'default' },
+          }, '✓ ' + tr('wf.noneLeft')),
       ]),
-      h('div', { key: 'bar', style: { height: 4, borderRadius: 3, background: '#23262e', overflow: 'hidden', marginBottom: 8 } },
+      h('div', { key: 'bar', style: { height: 4, borderRadius: 3, background: '#23262e', overflow: 'hidden', margin: '8px 0 0' } },
         [h('div', { key: 'i', style: { height: '100%', width: pct + '%', background: '#3fb950' } })]),
-      focus ? h('div', { key: 'focus', style: { fontSize: 11, color: '#a1a1aa', marginBottom: 8 } },
-        '当前这一张：#' + focus.key + ' ' + (focus.state === 'running' ? '（在做：' + focus.assignees.join('、') + '）' : '（可接）')) : null,
-      folded ? h('div', { key: 'folded', style: { fontSize: 11, color: '#8b8b95' } },
-        tr('wf.summary', { ready: lane.ready, queued: lane.queued, blocked: lane.blocked })) : null,
+      folded ? h('div', { key: 'folded', style: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: '#a1a1aa', marginTop: 8 } }, [
+        h('span', { key: 'chev', style: { color: '#8b8b95' } }, '▸'),
+        h('span', { key: 'txt' }, foldedText),
+      ]) : null,
+      // A 的身体：当前这一张 + 分层卡片（同层并排，层间竖线）。
+      (folded ? null : (focus ? h('div', { key: 'focus', style: { fontSize: 11, color: '#a1a1aa', margin: '8px 0 8px' } },
+        '当前这一张：#' + focus.key + ' ' + (focus.state === 'running' ? '（在做：' + focus.assignees.join('、') + '）' : '（可接）')) : null)),
     ]
       .concat(folded ? [] : body))
   }))
