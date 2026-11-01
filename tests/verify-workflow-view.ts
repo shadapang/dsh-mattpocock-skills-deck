@@ -146,6 +146,8 @@ console.log('== ⑥ 折叠与「执行全部」按钮的接线 ==')
   const view = sourceText('src/client/views/WorkflowView.ts')
   const yaml = sourceText('config/copy/flow.yaml')
   check(/st\.wfFold/.test(view), '⑥ 折叠状态落在会话状态（st.wfFold[effortId]），不新增票字段')
+  check(/dsws\.wfFold/.test(view) && /localStorage\.setItem/.test(view), '⑥ 折叠状态按工作区存本机（dsws.wfFold.<工作区>）')
+  check(/!st\.wfFold/.test(view) && /localStorage\.getItem/.test(view), '⑥ 第一次画时从本机存储接回折叠状态')
   check(/inject\(st, workflowRunPromptOf\(lane/.test(view), '⑥ 执行全部把这条泳道的提示词注入当前会话')
   check(/tr\('wf\.runLane'/.test(view) && /tr\('wf\.runLaneShort'/.test(view), '⑥ 执行入口文案走词表（宽 / 窄两套）')
   check(/tr\('wf\.pct'/.test(view) && /tr\('wf\.pctRunning'/.test(view), '⑥ 泳道头两行：进度 / 在做什么')
@@ -185,6 +187,15 @@ console.log('== ⑦ 渲染冒烟：折叠、执行全部、全部完成三态 ==
   g.workflowFocusOf = workflowFocusOf
   g.workflowRunPromptOf = workflowRunPromptOf
   g.WF_WIP_LIMIT = WF_WIP_LIMIT
+  g.keyOf = (cwd: any) => cwd || ''
+  // 本机存储桩：折叠状态要能读回来（刷新这件事的门禁）。
+  const mem = new Map<string, string>()
+  g.localStorage = {
+    getItem: (k: string) => (mem.has(k) ? mem.get(k)! : null),
+    setItem: (k: string, v: string) => { mem.set(k, String(v)) },
+    removeItem: (k: string) => { mem.delete(k) },
+  }
+  g.log = () => {}
   const wfMod = await import(pathToFileURL(path.join(root, 'src/client/views/WorkflowView.ts')).href)
   const render = (st: any) => (wfMod as any).WorkflowViewNode(st, false)
   const walk = (n: any, out: any[]) => {
@@ -200,7 +211,7 @@ console.log('== ⑦ 渲染冒烟：折叠、执行全部、全部完成三态 ==
     if (n.children) return n.children.map(textOf).join('')
     return ''
   }
-  const st = { snapshot: { issues: [
+  const st = { cwd: 'E:/demo', snapshot: { issues: [
     { number: 1, title: 'a', state: 'CLOSED', effortId: 'w1', assignees: [], blockedBy: [] },
     { number: 2, title: 'b', state: 'OPEN', effortId: 'w1', assignees: [], blockedBy: [1] },
     { number: 3, title: 'c', state: 'OPEN', effortId: 'w1', assignees: [], blockedBy: [2] },
@@ -222,11 +233,26 @@ console.log('== ⑦ 渲染冒烟：折叠、执行全部、全部完成三态 ==
 
   head.props.onClick({ stopPropagation: () => {} })
   check(st.wfFold && st.wfFold.w1 === true && emitted === 1, '⑦ 点泳道头折叠，状态落在 st.wfFold')
+  check(mem.get('dsws.wfFold.E:/demo') === '["w1"]', '⑦ 折叠后按工作区写进本机存储（刷新还记得）')
   const foldedNodes = nodesOf(render(st))
   check(!foldedNodes.some((n: any) => String(n.props && n.props.key || '').indexOf('wf-card-w1-') === 0), '⑦ 折叠后卡片一条都不画')
   check(foldedNodes.some((n: any) => textOf(n).indexOf('wf.foldedNext') >= 0), '⑦ 折叠行给出「下一站」')
   check(foldedNodes.some((n: any) => textOf(n).indexOf('wf.summary') >= 0), '⑦ 折叠行给出可接/排队/被挡摘要')
   check(foldedNodes.some((n: any) => n.props && n.props['data-log'] === 'list.wf.runAll'), '⑦ 折叠后执行入口仍在（可以在折叠状态直接开跑）')
+
+  // 刷新场景：新会话状态（还没有 wfFold）第一次画时，从本机存储接回折叠状态。
+  const refreshed = { cwd: 'E:/demo', snapshot: { issues: [
+    { number: 1, title: 'a', state: 'CLOSED', effortId: 'w1', assignees: [], blockedBy: [] },
+    { number: 2, title: 'b', state: 'OPEN', effortId: 'w1', assignees: [], blockedBy: [1] },
+  ] } }
+  const refreshedNodes = nodesOf(render(refreshed))
+  check((refreshed as any).wfFold && (refreshed as any).wfFold.w1 === true, '⑦ 刷新后第一次画就从本机存储接回折叠状态')
+  check(!refreshedNodes.some((n: any) => String(n.props && n.props.key || '').indexOf('wf-card-w1-') === 0), '⑦ 刷新后仍是折叠态（卡片不画）')
+
+  // 展开后要把存储里的那一条摘掉，不能只改内存。
+  const head2 = foldedNodes.find((n: any) => n.props && n.props['data-log'] === 'list.wf.fold')
+  head2.props.onClick({ stopPropagation: () => {} })
+  check(mem.get('dsws.wfFold.E:/demo') === '[]', '⑦ 展开后存储里也摘掉（刷新保持展开）')
 
   const done = render({ snapshot: { issues: [
     { number: 1, title: 'a', state: 'CLOSED', effortId: 'w1', assignees: [], blockedBy: [] },

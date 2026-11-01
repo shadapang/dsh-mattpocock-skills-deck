@@ -22,6 +22,9 @@ declare function inject(...args: any[]): any
 declare function promptLang(...args: any[]): any
 declare function workflowRunPromptOf(...args: any[]): any
 declare const Tip: any
+// 折叠状态的记性（2026-11-01 维护者要「刷新也要记住」）：用本机 localStorage，按工作区一把键。
+declare function keyOf(...args: any[]): any
+declare function log(...args: any[]): any
 // 判定真源在 workflowLayout.ts（build 时同处一个闭包）：这里只声明、不 import，产物里不留痕。
 declare function workflowLanesOf(...args: any[]): any
 declare function workflowFocusOf(...args: any[]): any
@@ -104,11 +107,51 @@ const wfConnNode = function (key: string, done: boolean): any {
 }
 
 /**
+ * 折叠状态的记性（2026-11-01 维护者要「刷新也要记住」）。
+ *
+ * 存哪：本机 localStorage，按工作区一把键（与 store-prefs 的 listPrefs 同一套本机存储）。
+ *   为什么不进设置文件：设置文件的 workspaces 记录只认固定的几个开关名，加新名字要改核的校验、
+ *   YAML 写出与迁移；折叠是纯界面状态，丢了不影响数据，本机存储足够，刷新与重开都在。
+ * 怎么存：只存「折了哪几条」的 effortId 数组，展开的不存；解析失败/存储不可用一律按「全部展开」。
+ */
+const WF_FOLD_STORAGE_PREFIX = 'dsws.wfFold'
+const wfFoldStorageKeyOf = function (st: any): string {
+  let ws = ''
+  try { ws = (typeof keyOf === 'function') ? String(keyOf(st && st.cwd) || '') : '' } catch (e) { ws = '' }
+  return ws ? (WF_FOLD_STORAGE_PREFIX + '.' + ws) : WF_FOLD_STORAGE_PREFIX
+}
+const wfFoldReadOf = function (st: any): Record<string, boolean> {
+  const out: Record<string, boolean> = {}
+  try {
+    if (typeof localStorage === 'undefined' || !localStorage) return out
+    const raw = localStorage.getItem(wfFoldStorageKeyOf(st))
+    const arr = raw ? JSON.parse(raw) : null
+    if (Array.isArray(arr)) {
+      for (const x of arr) if (typeof x === 'string' && x) out[x] = true
+    }
+  } catch (e) {
+    try { if (typeof log === 'function') log('warn', 'storage.fail', { key: 'wfFold', op: 'read' }) } catch (eL) {}
+  }
+  return out
+}
+const wfFoldWriteOf = function (st: any, fold: any): void {
+  try {
+    if (typeof localStorage === 'undefined' || !localStorage) return
+    const arr = Object.keys(fold || {}).filter(function (k: string) { return !!fold[k] })
+    localStorage.setItem(wfFoldStorageKeyOf(st), JSON.stringify(arr))
+  } catch (e) {
+    try { if (typeof log === 'function') log('warn', 'storage.fail', { key: 'wfFold', op: 'write' }) } catch (eL) {}
+  }
+}
+
+/**
  * 工作流视图主入口。
  * @param st 会话状态（读 st.snapshot；st.listView 决定列表面板显示哪一视图）
  * @param narrow 面板窄态：窄态每层只放一张卡（并排会挤成一条缝）
  */
 export const WorkflowViewNode = function (st: any, narrow: boolean): any {
+  // 第一次画这条工作区时把折叠状态从本机存储接回来（只接一次，之后以 st.wfFold 为准）。
+  if (st && typeof st === 'object' && !st.wfFold) st.wfFold = wfFoldReadOf(st)
   const issues = (st && st.snapshot && Array.isArray(st.snapshot.issues)) ? st.snapshot.issues : []
   // 容器（地图 / 规格）不是任务卡：列表页也用同一个判据把它们摘出去
   const plain = issues.filter(function (x: any) { try { return !containerKindOf(x) } catch (e) { return true } })
@@ -149,6 +192,8 @@ export const WorkflowViewNode = function (st: any, narrow: boolean): any {
     //   点整条泳道头也能折，点里面的「按这条工作流执行」不折（stopPropagation）。
     const toggleFold = function () {
       st.wfFold = Object.assign({}, (st && st.wfFold) || {}, { [lane.effortId]: !folded })
+      // 先落盘再重画：刷新/重开时由 WorkflowViewNode 开头那一趟读回来。
+      wfFoldWriteOf(st, st.wfFold)
       try { if (typeof emit === 'function') emit(st) } catch (e) {}
     }
     // B 的头：名字 + 进度一行；CTA 在右侧（窄态收成「执行 · N」）。
