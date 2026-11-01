@@ -1,11 +1,16 @@
 # MattSkillsDeck · 开发总纲
 
-> 版本：2026-11-01（V1）
+> 版本：2026-11-01（V1.1，外部评审后修订）
 > 读者：维护者、接手的 Agent、外部评审。
 > 范围：这个项目「为什么做、现在长什么样、接下来按什么标准做」。
-> 相关文档：`docs/workflow/DEV-WORKFLOW.md`（改代码→构建→生效）、`docs/architecture/*`（架构细节）、
-> 工作区里的 `docs/deck/IMPLEMENTATION.md`（实施流程）、`docs/deck/DISCUSSION.md`（讨论两阶段）、
-> `docs/deck/WORKFLOW.md`（波次容器）、`docs/agents/*`（票务/标签/领域文档约定）。
+>
+> **两个位置先分清**（否则照 §8 找文件会找不到）：
+> - **插件仓（有 git）**：`E:\repos\mattdeck` —— 本文在 `docs/workflow/PROJECT.md`，架构在 `docs/architecture/*`，
+>   开发流程在 `docs/workflow/DEV-WORKFLOW.md`。
+> - **工作区（无 git）**：`E:\Agent\DeepSeek Harness` —— 票与编排都在这里：`docs/deck/{IMPLEMENTATION,DISCUSSION,WORKFLOW}.md`、
+>   `scripts/deck/workflow.mjs`、`.scratch/**`、`docs/agents/*`。
+>
+> 哪些已落地、哪些只是设计：见 §0.1 状态总表。
 
 ---
 
@@ -32,6 +37,30 @@
 ```
 
 ---
+
+### 0.1 状态总表（2026-11-01 22:30 核对）
+
+| 项 | 状态 | 证据 / 位置 |
+|---|---|---|
+| 工作流视图（B 头 + A 身） | 已落地 | `src/client/views/WorkflowView.ts`；门禁 `tests/verify-workflow-view.ts` 57 条全过 |
+| 折叠 + 按工作区持久化 | 已落地 | `st.wfFold` + localStorage `dsws.wfFold.<工作区>`；门禁含刷新回读 |
+| 泳道名取容器标题 | 已落地 | `workflowLayout.ts` 的 `wfLaneTitleOf`；无容器时回退目录名 |
+| 编排脚本 + runs 状态机 | 已落地（工作区） | `scripts/deck/workflow.mjs` `self-test ok`；w1/w2 各一个 run |
+| 票模板 v2（Standards / Verification） | 未实现 | `docs/deck/IMPLEMENTATION.md` §8 仍是旧模板 |
+| 派工门禁 v2（无 Verification 不派） | 未实现 | `workflowRunPromptOf` 与 `workflow.mjs` 都还没有 |
+| 执行提示词 v2（implement→tdd→Verification→code-review→Answer） | 未实现 | 仍是旧版：只核 Acceptance |
+| `docs/deck/STANDARDS.md` | 未实现 | 计划 P1 |
+| 票与编排文档进版本控制 | 未实现 | 工作区 `E:\Agent\DeepSeek Harness` 无 `.git` |
+
+统计：**已落地 4 项 / 设计已定未实现 4 项 / 待建 1 项**。
+
+对外同步与现场（2026-11-01 22:30 实测）：
+
+- 插件仓 `main` 领先 `origin/main` **11 个提交 / 3082 行**；本地裸备仓 `backup/main` 落后 **7 个提交** —— 两路都断。
+- 工作区 41 张实施票 + 7 个 spec/map、`scripts/deck/*`、`docs/deck/*` **零版本控制、零备份**。
+- 两个未收口分支：`feat/auto-open-right-panel-20261030`（与 main 零差异，可删）；`fix/filter-group-caption-20261030`（8 个提交未合、303 行）。
+- `wave-w3` 2 张票有目录，但 `runs/` 里没有 w3 —— 起了头没记运行态。
+- 9 张标 done 的卡，验收项 **合计 34 条、勾选 0 条**（w1/w2 报告原文）。
 
 ## 1. 项目定位
 
@@ -71,7 +100,8 @@ DSH 宿主进程
 
 关键边界：
 - **client 改动刷新页面生效；host 改动必须重启 DSH**（`docs/workflow/DEV-WORKFLOW.md` §2）。
-- 插件产物是**构建生成**的（`src/` 唯一真源，`package/lib/*` 由 `scripts/build.mts` 生成，不入库）。
+- 插件产物是**构建生成**的：`src/` 唯一真源；`client.js` / `host.js` / `package/lib/*` 由 `scripts/build.mts` 生成并被
+  `.gitignore` 忽略（这三类入库 0 文件）；`package/` 下入库的 140 个文件是 bundled-skills（82 + 52）与元数据。
 - 面板里所有写操作都经 `wf.*` RPC 回 host，client 不直接碰文件。
 
 ### 2.2 票务模型（后端中性）
@@ -112,7 +142,7 @@ DSH 宿主进程
 
 ### 2.6 质量底座（既有的，别丢）
 
-- `src/**` 唯一真源；构建出 `client.js` / `host.js` / `package/lib/*`。
+- `src/**` 唯一真源；构建出 `client.js` / `host.js` / `package/lib/*`（三者不入库）。
 - 单文件有效行上限 350（`tests/verify-file-granularity.ts`）。
 - 门禁链：`typecheck`、`verify-leaves`、`verify-kernel`、`verify-ctx`、`verify-1106-deck-surface`、
   `verify-1327-freshness`、各功能门禁（如 `verify-workflow-view`）。
@@ -344,16 +374,20 @@ wayfinder:map              /to-spec                 /to-tickets             宿�
 
 ## 8. 仓库与文档落点
 
-| 位置 | 内容 |
-|---|---|
-| `src/` | 唯一真源（client / host / tracker / shared / seam） |
-| `package/` | 构建产物（发布用，入库但由构建生成） |
-| `docs/architecture/` | 架构、契约、拆分图 |
-| `docs/workflow/` | 开发工作流、本总纲 |
-| `docs/prototype/` | 一次性原型（含工作流视图三变体） |
-| `docs/agents/` | 票务后端、triage 标签、领域文档约定（setup 产物） |
-| `AGENTS.md` | 人/Agent 协作约定（含技能路由） |
-| `.scratch/<effort>/` | 探索地图、规格、实施票、runs（工作区里） |
+> 「位置」一列是硬信息：**插件仓** = `E:\repos\mattdeck`（有 git）；**工作区** = `E:\Agent\DeepSeek Harness`（**无 git**）。
+
+| 位置 | 在哪 | 内容 |
+|---|---|---|
+| `src/` | 插件仓 | 唯一真源（client / host / tracker / shared / seam） |
+| `package/` | 插件仓 | 入库 140 个文件 = bundled-skills + 元数据；`package/lib/`、`client.js`、`host.js` 由构建生成、不入库 |
+| `docs/architecture/` | 插件仓 | 架构、契约、拆分图 |
+| `docs/workflow/` | 插件仓 | 开发工作流、本总纲 |
+| `docs/prototype/` | 插件仓 | 一次性原型（含工作流视图三变体） |
+| `docs/deck/` | **工作区** | 实施协议、讨论两阶段、波次容器、波末报告 |
+| `scripts/deck/` | **工作区** | `workflow.mjs`（编排）、`plan.mjs`、`session-view.mjs`、备份/恢复脚本 |
+| `.scratch/<effort>/` | **工作区** | 探索地图、规格、实施票、`runs/*.json` |
+| `docs/agents/` | **工作区** | 票务后端、triage 标签、领域文档约定（setup 产物） |
+| `AGENTS.md` | **工作区** | 人/Agent 协作约定（含技能路由） |
 
 ---
 
@@ -365,7 +399,29 @@ wayfinder:map              /to-spec                 /to-tickets             宿�
 - 门禁：`verify-workflow-view` 57 条；typecheck / build / leaves / kernel / ctx / 1106 / 1327 全绿。
 - 原型：三变体 + 选定稿归档；真机安装流程（覆盖 + 锚定补丁重打）。
 
-### P0（把标准接进卡流程，1～2 天）
+### A（止血：先保证「记录不会丢」，半天）
+
+> 外部评审 2026-11-01 提的 A 方案，采纳。**做完 A 再做 P0**，否则改完的门禁可能因为工作区误删重来。
+
+1. **工作区建 git**：`E:\Agent\DeepSeek Harness` 初始化；`.gitignore` 排除 `agent2api.db*`、`out/`、`browser-screenshots/`、`.tmp*`、`node_modules/`、日志与缓存；
+   首个提交纳管 41 张实施票 + 7 个 spec/map + `docs/deck/*` + `scripts/deck/*` + `docs/agents/*` + `AGENTS.md`。
+2. **两路备份**：建本地裸备仓（如 `E:\repos\deck-workspace.git`，命名按维护者定），推一路；第二路等维护者给远端。
+3. **插件仓补推**：`main` → `origin` 与 `backup`；先解决 partial clone promisor 缺对象导致的 `unpack` 失败。
+4. **分支收口**：删 `feat/auto-open-right-panel-20261030`（与 main 零差异）；`fix/filter-group-caption-20261030`（8 提交 / 303 行）评审后合并。
+5. **w3 运行态**：`node scripts/deck/workflow.mjs init-run --wave w3` 生成 run，不手写 JSON。
+
+A 的验收（命令 + 期望）：
+
+```
+cd E:\Agent\DeepSeek Harness ; git status --short        # 空
+cd E:\repos\mattdeck ; git log --oneline origin/main..main   # 空
+git rev-parse HEAD ; git ls-remote origin refs/heads/main    # 两行 sha 一致
+git rev-parse HEAD ; git ls-remote backup refs/heads/main    # 两行 sha 一致
+git worktree list                                        # 只剩主工作区
+ls E:\Agent\DeepSeek Harness\.scratch\runs               # 有 w3 的 run 文件
+```
+
+### P0（把标准接进卡流程，1～2 天；当前 0/4）
 
 1. 票模板 v2：加 `## Standards`、`## Verification`（改 `docs/deck/IMPLEMENTATION.md` §8 + 建/改票提示词）。
 2. 门禁 v2：`workflowRunPromptOf` 加「无 Verification 不派」；`workflow.mjs` 的 gate 同步。
@@ -415,6 +471,7 @@ wayfinder:map              /to-spec                 /to-tickets             宿�
 | 风险 | 影响 | 处置 |
 |---|---|---|
 | markdown 后端无跨进程锁 | 并行写票会撞号/覆盖 | 宿主单写；子代理禁写；波末 digest 核对 |
+| **工作区没有 git** | 41 张票、`docs/deck/*`、`scripts/deck/*` 零版本控制、零备份；误删不可恢复 | A 方案建仓 + 两路备份；**A 完成前禁止批量改 `.scratch/**`** |
 | localStorage 跟 origin（端口）走 | 换端口折叠记忆丢 | 接受；要跨端口/换机就搬设置文件（需改核 schema） |
 | 子代理握着同一套 deck 写工具 | 隔离只能靠 prompt | 任务书显式禁止 + 波末核对票面未变 |
 | 技能是提示词，不是强制 | 不写就没人拦 | 把标准落到票模板、门禁、执行提示词三处 |
@@ -460,3 +517,27 @@ wayfinder:map              /to-spec                 /to-tickets             宿�
 | `scripts/deck/workflow.mjs`（工作区） | 编排脚本：plan / init-run / claim / record / verify / reconcile / close-wave / self-test |
 | `docs/deck/IMPLEMENTATION.md`（工作区） | 实施协议：四段式、票模板、门禁表、runs 状态机 |
 
+
+---
+
+## 附：外部评审回执（2026-11-01 22:23，MVP 开发专家团 v2.1.0）
+
+**结论：采纳。** 评审对事实的核对基本准确，三条硬伤（工作区无 git / 9 卡未勾就 done / 两路推送全断）全部属实；
+按它的建议先做 A（止血）再做 B（P0 门禁），理由「先保证记录不会丢，再保证记录不会撒谎」成立。
+
+**已按评审修订本文**：新增 §0.1 状态总表、§8 标注每个文件在哪个仓、§2.1 与 §8 的 `package/` 表述对齐、
+§11 补「工作区没有 git」风险、§9 增加 A 方案与验收命令。
+
+**评审里需要修正的四处**（不影响结论）：
+
+| 评审说法 | 实测 |
+|---|---|
+| 「文档从 11-01 凌晨定稿到 22:04 一条没动」 | 本文 V1 是 **21:50** 才提交（`2e339b0`）；P0 是当晚刚定的计划，不是逾期。但「P0 0/4」属实 |
+| 「42 张票」 | **41 张实施票** + 7 个 spec/map 容器（`.scratch/**/*.md` 共 60 份含研究/run 记录） |
+| 「fix 分支 3 个提交未合」 | 实际 **8 个提交 / 303 行**（`main..fix/filter-group-caption-20261030`） |
+| 「backup 落后 6 个提交」 | 评审后我们又提交了 1 个，现为 **落后 7 个** |
+
+**分工**：
+
+- **A（止血）** 交专家团：工作区建 git + 纳管 + 两路备份 + 插件仓补推 + 分支收口 + w3 运行态。
+- **B（P0）** 由维护者侧执行：票模板 / Verification 门禁 / 执行提示词 v2 / STANDARDS.md —— 因为要改插件源码、跑门禁、真机装回，必须有本地工具链与验证。
