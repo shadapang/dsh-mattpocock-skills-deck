@@ -29,7 +29,7 @@ const eq = (a: any, b: any) => JSON.stringify(a) === JSON.stringify(b)
 
 const root = path.resolve(import.meta.dirname, '..')
 const mod = await import(pathToFileURL(path.join(root, 'src/client/views/workflowLayout.ts')).href)
-const { workflowDepths, workflowLaneOf, workflowLanesOf, workflowEdgesOf, workflowFocusOf, WF_WIP_LIMIT } = mod as any
+const { workflowDepths, workflowLaneOf, workflowLanesOf, workflowEdgesOf, workflowFocusOf, workflowRunnableOf, workflowRunPromptOf, WF_WIP_LIMIT } = mod as any
 
 const T = (key: string, number: number, extra: any = {}) => ({
   key, number, title: 'T' + key, effortId: 'w1', closed: false, assignees: [], blockedBy: [], ...extra,
@@ -111,6 +111,122 @@ console.log('== ④ 接线：默认工作流视图，两个叶子已登记 ==')
   check(build.indexOf("workflowLayout', file: 'src/client/views/workflowLayout.ts") >= 0 && build.indexOf("WorkflowView', file: 'src/client/views/WorkflowView.ts") >= 0, '④ 两个叶子已登记进构建清单')
   check(indexSrc.indexOf('leaf:workflowLayout') >= 0 && indexSrc.indexOf('leaf:WorkflowView') >= 0, '④ 客户端拼接表里有两个叶子的标记')
   check(/setActiveIssue\(st, card\.number, card\.effortId\)/.test(view), '④ 点卡片进票详情（带 effortId，多工作单元不会串号）')
+}
+
+console.log('== ⑤ 执行全部：只列没关的票，顺序按依赖深度再按编号 ==')
+{
+  const tickets = [
+    T('1', 1, { closed: true }),
+    T('2', 2, { blockedBy: ['1'] }),
+    T('3', 3, { blockedBy: ['2'] }),
+    T('4', 4, { assignees: ['lead'] }),
+  ]
+  const lane = workflowLaneOf('w1', tickets)
+  const runnable = workflowRunnableOf(lane)
+  check(eq(runnable.map((c: any) => c.key), ['4', '2', '3']), '⑤ 执行顺序：先无依赖的 #4，再 #2、#3；已关闭的 #1 不进')
+  check(runnable.every((c: any) => !c.closed), '⑤ 提示词不会带上已关闭的票')
+
+  const zh = workflowRunPromptOf(lane, 'zh')
+  check(/^\- #4 /m.test(zh) && /^\- #2 /m.test(zh) && /^\- #3 /m.test(zh), '⑤ 中文提示词逐行列出要推进的票')
+  check(!/^\- #1 /m.test(zh), '⑤ 中文提示词不列 #1（只作为 #2 的挡路票出现）')
+  check(zh.indexOf('Acceptance') >= 0 && zh.indexOf('wayfinder:*') >= 0, '⑤ 中文提示词带上派工门禁（验收 + 决定票不派）')
+  check(zh.indexOf('最多 2 张') >= 0, '⑤ 中文提示词写明每波 ≤2')
+
+  // 真被挡的票（挡路票还开着）要把挡路票写进提示词，子代理才知道等谁。
+  const blockedZh = workflowRunPromptOf(workflowLaneOf('w1', [T('1', 1), T('2', 2, { blockedBy: ['1'] })]), 'zh')
+  check(blockedZh.indexOf('被 #1 挡住') >= 0, '⑤ 被挡的票写清挡路票')
+
+  const en = workflowRunPromptOf(lane, 'en')
+  check(/^\- #4 /m.test(en) && en.indexOf('Acceptance') >= 0 && en.indexOf('at most 2') >= 0, '⑤ 英文提示词同样自包含')
+}
+
+console.log('== ⑥ 折叠与「执行全部」按钮的接线 ==')
+{
+  const { sourceText } = requireHere('./lib/source-text.ts')
+  const view = sourceText('src/client/views/WorkflowView.ts')
+  const yaml = sourceText('config/copy/flow.yaml')
+  check(/st\.wfFold/.test(view), '⑥ 折叠状态落在会话状态（st.wfFold[effortId]），不新增票字段')
+  check(/inject\(st, workflowRunPromptOf\(lane/.test(view), '⑥ 执行全部把这条泳道的提示词注入当前会话')
+  check(/tr\('wf\.runAll'\)/.test(view) && /tr\('wf\.noneLeft'\)/.test(view), '⑥ 按钮文案走词表')
+  check(/tr\('wf\.summary'/.test(view), '⑥ 折叠后仍给出可接/排队/被挡的摘要')
+  check((yaml.split('wf.runAll:').length - 1) === 2 && (yaml.split('wf.summary:').length - 1) === 2, '⑥ 词表 zh / en 两段都补齐了新键')
+}
+
+console.log('== ⑦ 渲染冒烟：折叠、执行全部、全部完成三态 ==')
+{
+  // 渲染层是 build 拼接的叶子，运行时依赖同一闭包里的名字；这里用全局桩把闭包补出来，
+  //   直接调 WorkflowViewNode 验「点得动、点对了、折叠后卡片真的不画」。
+  const injected: string[] = []
+  let emitted = 0
+  const g = globalThis as any
+  const hStub = (tag: any, props: any, children?: any) => {
+    const list: any[] = []
+    const push = (c: any) => {
+      if (c == null || c === false || c === true) return
+      if (Array.isArray(c)) { for (const x of c) push(x); return }
+      list.push(c)
+    }
+    push(children)
+    return { tag: typeof tag === 'string' ? tag : 'Component', props: props || {}, children: list }
+  }
+  g.h = hStub
+  g.tr = (k: string) => k
+  g.Tip = function TipStub() {}
+  g.emit = () => { emitted++ }
+  g.inject = (_st: any, text: string) => { injected.push(text) }
+  g.promptLang = () => 'zh'
+  g.setActiveIssue = () => {}
+  g.effortNamesOf = () => ['w1']
+  g.effortOf = (x: any) => (x && x.effortId) || ''
+  g.containerKindOf = () => null
+  g.workflowLanesOf = workflowLanesOf
+  g.workflowFocusOf = workflowFocusOf
+  g.workflowRunPromptOf = workflowRunPromptOf
+  g.WF_WIP_LIMIT = WF_WIP_LIMIT
+  const wfMod = await import(pathToFileURL(path.join(root, 'src/client/views/WorkflowView.ts')).href)
+  const render = (st: any) => (wfMod as any).WorkflowViewNode(st, false)
+  const walk = (n: any, out: any[]) => {
+    if (!n || typeof n !== 'object') return
+    out.push(n)
+    if (Array.isArray(n.children)) for (const c of n.children) walk(c, out)
+  }
+  const nodesOf = (v: any) => { const out: any[] = []; walk(v, out); return out }
+  const textOf = (n: any): string => {
+    if (n == null || n === false) return ''
+    if (typeof n === 'string' || typeof n === 'number') return String(n)
+    if (Array.isArray(n)) return n.map(textOf).join('')
+    if (n.children) return n.children.map(textOf).join('')
+    return ''
+  }
+  const st = { snapshot: { issues: [
+    { number: 1, title: 'a', state: 'CLOSED', effortId: 'w1', assignees: [], blockedBy: [] },
+    { number: 2, title: 'b', state: 'OPEN', effortId: 'w1', assignees: [], blockedBy: [1] },
+    { number: 3, title: 'c', state: 'OPEN', effortId: 'w1', assignees: [], blockedBy: [2] },
+  ] } }
+
+  const nodes = nodesOf(render(st))
+  const head = nodes.find((n: any) => n.props && n.props['data-log'] === 'list.wf.fold')
+  const runBtn = nodes.find((n: any) => n.props && n.props['data-log'] === 'list.wf.runAll')
+  check(!!head && textOf(head).indexOf('▾') >= 0, '⑦ 泳道头带展开箭头（默认展开）')
+  check(!!runBtn && textOf(runBtn).indexOf('wf.runAll · 2') >= 0, '⑦ 执行全部按钮带剩余张数（2 张）')
+  check(nodes.some((n: any) => String(n.props && n.props.key || '').indexOf('wf-card-w1-2') === 0), '⑦ 展开时画卡片')
+
+  runBtn.props.onClick({ stopPropagation: () => {} })
+  check(injected.length === 1 && injected[0].indexOf('#2') >= 0, '⑦ 点执行全部注入提示词（含 #2）')
+  check(emitted === 0, '⑦ 点执行全部不会误折叠（stopPropagation）')
+
+  head.props.onClick({ stopPropagation: () => {} })
+  check(st.wfFold && st.wfFold.w1 === true && emitted === 1, '⑦ 点泳道头折叠，状态落在 st.wfFold')
+  const foldedNodes = nodesOf(render(st))
+  check(!foldedNodes.some((n: any) => String(n.props && n.props.key || '').indexOf('wf-card-w1-') === 0), '⑦ 折叠后卡片一条都不画')
+  check(foldedNodes.some((n: any) => textOf(n).indexOf('wf.summary') >= 0 || (n.props && n.props['data-log'] === 'list.wf.fold')), '⑦ 折叠后仍保留泳道头（可再展开）')
+
+  const done = render({ snapshot: { issues: [
+    { number: 1, title: 'a', state: 'CLOSED', effortId: 'w1', assignees: [], blockedBy: [] },
+  ] } })
+  const doneNodes = nodesOf(done)
+  check(!doneNodes.some((n: any) => n.props && n.props['data-log'] === 'list.wf.runAll'), '⑦ 全部完成时不再给执行全部按钮')
+  check(doneNodes.some((n: any) => textOf(n).indexOf('wf.noneLeft') >= 0), '⑦ 全部完成时显示全部完成')
 }
 
 if (failed) {

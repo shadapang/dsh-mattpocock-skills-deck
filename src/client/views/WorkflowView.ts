@@ -14,6 +14,14 @@ declare function setActiveIssue(...args: any[]): any
 declare function effortNamesOf(...args: any[]): any
 declare function effortOf(...args: any[]): any
 declare function containerKindOf(...args: any[]): any
+// 折叠与「执行全部」（2026-11-01 维护者要）：折叠状态落在会话状态 st.wfFold，
+// 执行按钮走既有 inject（注入当前会话输入框），提示词由 workflowLayout.ts 的纯函数给。
+declare function tr(...args: any[]): any
+declare function emit(...args: any[]): any
+declare function inject(...args: any[]): any
+declare function promptLang(...args: any[]): any
+declare function workflowRunPromptOf(...args: any[]): any
+declare const Tip: any
 // 判定真源在 workflowLayout.ts（build 时同处一个闭包）：这里只声明、不 import，产物里不留痕。
 declare function workflowLanesOf(...args: any[]): any
 declare function workflowFocusOf(...args: any[]): any
@@ -134,21 +142,53 @@ export const WorkflowViewNode = function (st: any, narrow: boolean): any {
 
     const pct = lane.total ? Math.round(lane.closed / lane.total * 100) : 0
     const focus = workflowFocusOf(lane)
+    const folded: boolean = !!(st && st.wfFold && st.wfFold[lane.effortId])
+    const remaining: number = Math.max(0, lane.total - lane.closed)
+    // 折叠状态只落在会话状态里（st.wfFold[effortId]），不新增票字段、不写文件；
+    //   点整条泳道头也能折，点里面的「执行全部」不折（stopPropagation）。
+    const toggleFold = function () {
+      st.wfFold = Object.assign({}, (st && st.wfFold) || {}, { [lane.effortId]: !folded })
+      try { if (typeof emit === 'function') emit(st) } catch (e) {}
+    }
     return h('div', {
       key: 'lane-' + lane.effortId,
       className: 'dsws-wflane',
       style: { border: '1px solid #2a2d35', borderRadius: 10, background: '#13161b', padding: 10 },
     }, [
-      h('div', { key: 'head', style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 } }, [
+      h('div', {
+        key: 'head',
+        className: 'dsws-wflane-head',
+        'data-press': 'button',
+        'data-log': 'list.wf.fold',
+        onClick: toggleFold,
+        style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, cursor: 'pointer', userSelect: 'none' },
+      }, [
+        h('span', { key: 'chev', 'aria-label': tr(folded ? 'wf.unfold' : 'wf.fold'), style: { fontSize: 10, color: '#8b8b95', flex: 'none', width: 10 } }, folded ? '▸' : '▾'),
         h('span', { key: 'n', style: { fontSize: 13, fontWeight: 600, color: '#e6edf3', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, name),
         h('span', { key: 's', style: { fontSize: 11, color: '#8b8b95', fontFamily: 'Consolas,"SF Mono",Menlo,monospace', marginLeft: 'auto', flex: 'none' } },
           '已完成 ' + lane.closed + '/' + lane.total + (lane.running ? ' · 在做 ' + lane.running : '') + (lane.queued ? ' · 排队 ' + lane.queued : '')),
+        // 「按工作流执行」：把这条工作流剩下的票按依赖顺序写进提示词，注入当前会话，
+        //   由宿主按 build 里的编排协议派子代理、逐张验收；脚本不越过门禁自己起进程。
+        remaining > 0
+          ? h(Tip, { key: 'run', content: tr('wf.runAllTitle') }, h('button', {
+            className: 'dsws-btn primary dsws-hov',
+            'data-press': 'button',
+            'data-log': 'list.wf.runAll',
+            onClick: function (e: any) {
+              e.stopPropagation()
+              try { inject(st, workflowRunPromptOf(lane, (typeof promptLang === 'function' ? promptLang() : 'zh'))) } catch (e2) {}
+            },
+            style: { fontSize: 11, padding: '0 8px', height: 22, flex: 'none' },
+          }, tr('wf.runAll') + ' · ' + remaining))
+          : h('span', { key: 'none', style: { fontSize: 11, color: '#3fb950', flex: 'none' } }, tr('wf.noneLeft')),
       ]),
       h('div', { key: 'bar', style: { height: 4, borderRadius: 3, background: '#23262e', overflow: 'hidden', marginBottom: 8 } },
         [h('div', { key: 'i', style: { height: '100%', width: pct + '%', background: '#3fb950' } })]),
       focus ? h('div', { key: 'focus', style: { fontSize: 11, color: '#a1a1aa', marginBottom: 8 } },
         '当前这一张：#' + focus.key + ' ' + (focus.state === 'running' ? '（在做：' + focus.assignees.join('、') + '）' : '（可接）')) : null,
+      folded ? h('div', { key: 'folded', style: { fontSize: 11, color: '#8b8b95' } },
+        tr('wf.summary', { ready: lane.ready, queued: lane.queued, blocked: lane.blocked })) : null,
     ]
-      .concat(body))
+      .concat(folded ? [] : body))
   }))
 }

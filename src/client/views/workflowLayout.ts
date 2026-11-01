@@ -162,3 +162,85 @@ export function workflowFocusOf(lane: WfLane): WfCard | null {
     .sort((a, b) => (a.depth - b.depth) || (a.number - b.number))
   return ready[0] || null
 }
+
+/**
+ * 「执行全部」按什么顺序派：没关闭的票，按依赖深度、再按编号。
+ * 已关闭的票不进提示词（不然子代理会去重做已完成的事）。
+ */
+export function workflowRunnableOf(lane: WfLane): WfCard[] {
+  return lane.cards
+    .filter((c) => !c.closed)
+    .slice()
+    .sort((a, b) => (a.depth - b.depth) || (a.number - b.number))
+}
+
+/** 票在提示词里的一行：编号 + 标题 + 当前状态（挡住它的票也写清楚）。 */
+function wfRunLineOf(c: WfCard, en: boolean): string {
+  let state: string
+  if (c.state === 'running') {
+    const who = c.assignees.length ? (en ? ' (' + c.assignees.join(', ') + ')' : '（' + c.assignees.join('、') + '）') : ''
+    state = en ? 'in progress' + who : '有人在做' + who
+  } else if (c.state === 'blocked') {
+    const by = c.blockedBy.map((b) => '#' + b).join(en ? ', ' : '、')
+    state = en ? 'blocked by ' + by : '被 ' + by + ' 挡住'
+  } else if (c.state === 'queued') {
+    state = en ? 'queued #' + c.queuePos : '排队第 ' + c.queuePos + ' 张'
+  } else {
+    state = en ? 'ready' : '可接'
+  }
+  return '- #' + c.key + ' ' + (c.title || '') + ' — ' + state
+}
+
+/**
+ * 「执行全部」注入的提示词（纯文本，不碰 DOM；zh / en 两版）。
+ *
+ * 为什么把票面写进提示词：宿主拿到的是一段自包含的任务书 —— 即使 deck 工具临时不可用、
+ * 或者工作区换了分支，也能从这段文字还原「这条工作流还剩哪几张、谁挡着谁」。
+ * 派工协议沿用 docs/deck/IMPLEMENTATION.md §6：宿主单写、每波 ≤2、子代理只交货、宿主逐票验收。
+ */
+export function workflowRunPromptOf(lane: WfLane, lang = 'zh'): string {
+  const en = String(lang || 'zh').toLowerCase().indexOf('en') === 0
+  const name = lane.effortId || (en ? 'this workspace' : '本工作区')
+  const runnable = workflowRunnableOf(lane)
+  const lines = runnable.map((c) => wfRunLineOf(c, en)).join('\n')
+  if (en) {
+    return [
+      'Start from first principles.',
+      '',
+      'Advance the remaining tickets of workflow "' + name + '" (' + runnable.length + ' left; ' + lane.closed + '/' + lane.total + ' closed).',
+      '',
+      '## Order',
+      lines,
+      '',
+      '## How',
+      '- [ ] Call deck_context first to confirm the backend; read and write tickets with the deck tools only — never hand-edit ticket files.',
+      '- [ ] Follow the order above, at most 2 tickets at a time; a ticket whose `Blocked by` is not all closed does not start.',
+      '- [ ] Give each ticket to one subagent; the subagent only delivers work and never writes tickets. Reply with exactly five fields: ticketKey / status / changed_files / evidence / open_risks.',
+      '- [ ] Verify each ticket yourself against `## Acceptance`, reading the diff or artifacts. When it passes, write `## Answer` and close it; when it fails, leave the state, record progress, and retry at most twice.',
+      '- [ ] Do not dispatch tickets without `## Acceptance`; do not dispatch decision tickets carrying a `wayfinder:*` label.',
+      '- [ ] If the workspace has `scripts/deck/workflow.mjs`, use it for waves and gates; otherwise schedule by the order above.',
+      '',
+      '## Wrap-up',
+      '- [ ] Stop and report when this wave ends: what got done, what is stuck and why. Do not start the next wave automatically.',
+    ].join('\n')
+  }
+  return [
+    '从第一性原理出发。',
+    '',
+    '按工作流「' + name + '」推进剩下的任务卡（还剩 ' + runnable.length + ' 张；已完成 ' + lane.closed + '/' + lane.total + '）。',
+    '',
+    '## 顺序',
+    lines,
+    '',
+    '## 做法',
+    '- [ ] 先调用 deck_context 确认当前后端；票一律用 deck 工具读写，不要手改 .scratch 下的票文件。',
+    '- [ ] 按上面的顺序推进，同一时刻最多 2 张；`Blocked by` 里还有未关闭的票，一律不开工。',
+    '- [ ] 每张票派一个子代理去做；子代理只交货、不写票，回执固定五段：ticketKey / status / changed_files / evidence / open_risks。',
+    '- [ ] 每张票由你逐条核对 `## Acceptance`，并亲自读 diff 或产物；过了写 `## Answer` 并关票，没过留在原状态、记 progress，同一张票重试不超过 2 次。',
+    '- [ ] 票面没有 `## Acceptance` 的不派；带 `wayfinder:*` 标签的决定票不派。',
+    '- [ ] 工作区若有 `scripts/deck/workflow.mjs`，用它算波次与门禁；没有就按上面的顺序自己排。',
+    '',
+    '## 收尾',
+    '- [ ] 一波结束就停下报告：做完几张、卡在哪张、为什么；不要自动开下一波。',
+  ].join('\n')
+}

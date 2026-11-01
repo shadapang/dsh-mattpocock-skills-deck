@@ -49,6 +49,12 @@ zh:
   list.none: 暂无
   list.viewCards: 任务卡
   list.viewFlow: 工作流
+  wf.fold: 收起
+  wf.unfold: 展开
+  wf.runAll: 执行全部
+  wf.runAllTitle: 按依赖顺序推进这条工作流剩下的任务卡（一次最多 2 张，逐张验收）
+  wf.noneLeft: 全部完成
+  wf.summary: "可接 {ready} · 排队 {queued} · 被挡 {blocked}"
   list.closedN: 已关闭 {n}（已加载 {x}）
   list.partial: 这份清单不全
   list.partialTitle: ISSUE 未完全加载，体检可能遗漏。
@@ -299,6 +305,12 @@ en:
   list.none: None
   list.viewCards: Cards
   list.viewFlow: Workflow
+  wf.fold: Collapse
+  wf.unfold: Expand
+  wf.runAll: Run all
+  wf.runAllTitle: Advance the remaining tickets of this workflow in dependency order (at most 2 at a time, each verified)
+  wf.noneLeft: All done
+  wf.summary: "{ready} ready · {queued} queued · {blocked} blocked"
   list.closedN: Closed {n} ({x} loaded)
   list.partial: This list is incomplete
   list.partialTitle: ISSUEs not fully loaded — the health check may miss some.
