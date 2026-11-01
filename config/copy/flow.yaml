@@ -61,6 +61,8 @@ zh:
   wf.foldedNext: 已折叠 · 下一站 {next}
   wf.foldedDone: 已折叠 · 全部完成 {closed}/{total}
   wf.summary: "可接 {ready} · 排队 {queued} · 被挡 {blocked}"
+  wf.dirHint: 目录：{dir}
+  wf.dirOnly: 目录：{dir}（这条工作流没有地图/规格标题）
   list.closedN: 已关闭 {n}（已加载 {x}）
   list.partial: 这份清单不全
   list.partialTitle: ISSUE 未完全加载，体检可能遗漏。
@@ -323,6 +325,8 @@ en:
   wf.foldedNext: Collapsed · next {next}
   wf.foldedDone: Collapsed · all done {closed}/{total}
   wf.summary: "{ready} ready · {queued} queued · {blocked} blocked"
+  wf.dirHint: "Folder: {dir}"
+  wf.dirOnly: "Folder: {dir} (this workflow has no map/spec title)"
   list.closedN: Closed {n} ({x} loaded)
   list.partial: This list is incomplete
   list.partialTitle: ISSUEs not fully loaded — the health check may miss some.

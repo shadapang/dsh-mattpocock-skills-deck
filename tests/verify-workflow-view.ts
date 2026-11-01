@@ -153,7 +153,7 @@ console.log('== ⑥ 折叠与「执行全部」按钮的接线 ==')
   check(/tr\('wf\.pct'/.test(view) && /tr\('wf\.pctRunning'/.test(view), '⑥ 泳道头两行：进度 / 在做什么')
   check(/tr\('wf\.foldedNext'/.test(view) && /tr\('wf\.foldedDone'/.test(view), '⑥ 折叠行说清「下一站」与「全完成」')
   check(/tr\('wf\.summary'/.test(view), '⑥ 折叠后仍给出可接/排队/被挡的摘要')
-  check(['wf.runLane:', 'wf.runLaneN:', 'wf.runLaneShort:', 'wf.pct:', 'wf.pctRunning:', 'wf.foldedNext:', 'wf.foldedDone:', 'wf.summary:'].every((k) => (yaml.split(k).length - 1) === 2), '⑥ 词表 zh / en 两段都补齐了新键')
+  check(['wf.runLane:', 'wf.runLaneN:', 'wf.runLaneShort:', 'wf.pct:', 'wf.pctRunning:', 'wf.foldedNext:', 'wf.foldedDone:', 'wf.summary:', 'wf.dirHint:', 'wf.dirOnly:'].every((k) => (yaml.split(k).length - 1) === 2), '⑥ 词表 zh / en 两段都补齐了新键')
 }
 
 console.log('== ⑦ 渲染冒烟：折叠、执行全部、全部完成三态 ==')
@@ -182,7 +182,13 @@ console.log('== ⑦ 渲染冒烟：折叠、执行全部、全部完成三态 ==
   g.setActiveIssue = () => {}
   g.effortNamesOf = () => ['w1']
   g.effortOf = (x: any) => (x && x.effortId) || ''
-  g.containerKindOf = () => null
+  g.containerKindOf = (x: any) => {
+    if (!x) return null
+    if (x.type === 'spec') return 'spec'
+    if (x.type === 'map') return 'map'
+    const labels = Array.isArray(x.labels) ? x.labels : []
+    return labels.some((l: any) => l && l.name === 'wayfinder:map') ? 'map' : null
+  }
   g.workflowLanesOf = workflowLanesOf
   g.workflowFocusOf = workflowFocusOf
   g.workflowRunPromptOf = workflowRunPromptOf
@@ -253,6 +259,29 @@ console.log('== ⑦ 渲染冒烟：折叠、执行全部、全部完成三态 ==
   const head2 = foldedNodes.find((n: any) => n.props && n.props['data-log'] === 'list.wf.fold')
   head2.props.onClick({ stopPropagation: () => {} })
   check(mem.get('dsws.wfFold.E:/demo') === '[]', '⑦ 展开后存储里也摘掉（刷新保持展开）')
+
+  // 泳道名：有人写的容器标题就用标题，不显示目录名；目录名进悬停提示。
+  const titled = render({ cwd: 'E:/demo-titled', snapshot: {
+    issues: [
+      { number: 1, title: 'a', state: 'CLOSED', effortId: 'w1', parentKey: '00', assignees: [], blockedBy: [] },
+      { number: 2, title: 'b', state: 'OPEN', effortId: 'w1', parentKey: '00', assignees: [], blockedBy: [1] },
+    ],
+    maps: [
+      { key: '00', type: 'spec', title: '平台交接体检与换机复刻', effortId: 'w1', stats: { total: 2, closed: 1 } },
+    ],
+  } })
+  const titledNodes = nodesOf(titled)
+  const titledHead = titledNodes.find((n: any) => n.props && n.props['data-log'] === 'list.wf.fold')
+  check(textOf(titledHead).indexOf('平台交接体检与换机复刻') >= 0, '⑦ 泳道名用人写的容器标题（不再直接显示目录名）')
+  check(titledNodes.some((n: any) => n.props && typeof n.props.title === 'string' && n.props.title.indexOf('wf.dirHint') >= 0), '⑦ 悬停提示里保留目录名（wf.dirHint）')
+
+  // 找不到容器的泳道：退回目录名，并在悬停里说清楚。
+  const plainNodes = nodesOf(render({ cwd: 'E:/demo-plain', snapshot: { issues: [
+    { number: 3, title: 'c', state: 'OPEN', effortId: 'raw-dir', assignees: [], blockedBy: [] },
+  ] } }))
+  const plainHead = plainNodes.find((n: any) => n.props && n.props['data-log'] === 'list.wf.fold')
+  check(textOf(plainHead).indexOf('raw-dir') >= 0, '⑦ 没有地图/规格标题时退回目录名')
+  check(plainNodes.some((n: any) => n.props && typeof n.props.title === 'string' && n.props.title.indexOf('wf.dirOnly') >= 0), '⑦ 退回目录名时悬停说明没有标题')
 
   const done = render({ snapshot: { issues: [
     { number: 1, title: 'a', state: 'CLOSED', effortId: 'w1', assignees: [], blockedBy: [] },

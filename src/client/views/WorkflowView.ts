@@ -54,7 +54,38 @@ const wfTicketOf = function (x: any): any {
     closed: String((x && x.state) || '').toUpperCase() === 'CLOSED',
     assignees,
     blockedBy: blocked,
+    // 认这条票挂在哪个容器（地图/规格）下：泳道名优先用它指向的那个容器的标题。
+    parentKey: String((x && x.parentKey) == null ? '' : (x && x.parentKey)),
   }
+}
+
+/**
+ * 泳道名：目录名（effortId）是开发看的，人看不懂。快照里的容器（地图/规格）带着人写的标题，
+ * 优先按「本泳道的票最常挂在哪张容器下」认标题；认不出就用目录名兜底。
+ * 为什么按票的 parentKey 认而不是按目录盲取：同一个 effort 可能既有地图又有规格，
+ * 两个标题说的是不同的事，按票挂在哪一张上取才不会张冠李戴。
+ */
+const wfLaneTitleOf = function (containers: any[], lane: any): any {
+  const own = containers.filter(function (m: any) {
+    try { return String(effortOf(m) || '') === lane.effortId } catch (e) { return false }
+  })
+  if (!own.length) return { title: lane.effortId, known: false }
+  const tally: Record<string, number> = {}
+  for (const c of lane.cards) {
+    const p = String(c.parentKey || '')
+    if (p) tally[p] = (tally[p] || 0) + 1
+  }
+  let best: any = null
+  for (const k of Object.keys(tally)) {
+    const hit = own.find(function (m: any) { return String(m.key) === k })
+    if (hit && (!best || tally[k] > (tally[String(best.key)] || 0))) best = hit
+  }
+  if (!best && own.length === 1) best = own[0]
+  if (!best) {
+    best = own.find(function (m: any) { try { return containerKindOf(m) === 'spec' } catch (e) { return false } }) || own[0]
+  }
+  const title = String((best && best.title) || '').replace(/\s+/g, ' ').trim()
+  return { title: title || lane.effortId, known: !!title }
 }
 
 /** 卡片：编号 + 状态点 + 标题 + 状态徽标 + 认领人 / 排队名次。点整卡进详情（detailOf 由调用方给）。 */
@@ -158,12 +189,17 @@ export const WorkflowViewNode = function (st: any, narrow: boolean): any {
   const tickets = plain.map(wfTicketOf)
   const order = (function () { try { return effortNamesOf(st) || [] } catch (e) { return [] } })()
   const lanes = workflowLanesOf(tickets, order, WF_WIP_LIMIT)
+  // 容器（地图 / 规格）：泳道名优先取人写的标题，不拿目录名当标题。
+  const containers = (st && st.snapshot && Array.isArray(st.snapshot.maps)) ? st.snapshot.maps.filter(function (m: any) {
+    try { return !!containerKindOf(m) } catch (e) { return false }
+  }) : []
   if (!lanes.length) {
     return h('div', { key: 'wf-empty', style: { fontSize: 12, color: '#a1a1aa', padding: '14px 0', textAlign: 'center' } }, '这条工作区里还没有任务卡')
   }
 
   return h('div', { key: 'wf-root', style: { display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 4 } }, lanes.map(function (lane: any) {
-    const name = lane.effortId || '本工作区'
+    const laneTitle = wfLaneTitleOf(containers, lane)
+    const name = laneTitle.title || lane.effortId || '本工作区'
     // 按依赖深度分层：同层并排，层与层之间一条竖线
     const layers: any[] = []
     for (const card of lane.cards) {
@@ -220,7 +256,11 @@ export const WorkflowViewNode = function (st: any, narrow: boolean): any {
         style: { display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 4, cursor: 'pointer', userSelect: 'none' },
       }, [
         h('div', { key: 'info', style: { flex: '1 1 auto', minWidth: 0 } }, [
-          h('div', { key: 'nm', style: { fontSize: 13.5, fontWeight: 600, color: '#e6edf3', letterSpacing: 0.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, [
+          h('div', {
+            key: 'nm',
+            title: laneTitle.known ? (name + ' · ' + tr('wf.dirHint', { dir: lane.effortId || '' })) : tr('wf.dirOnly', { dir: lane.effortId || '' }),
+            style: { fontSize: 13.5, fontWeight: 600, color: '#e6edf3', letterSpacing: 0.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+          }, [
             h('span', { key: 'chev', 'aria-label': tr(folded ? 'wf.unfold' : 'wf.fold'), style: { fontSize: 10, color: '#8b8b95', marginRight: 6 } }, folded ? '▸' : '▾'),
             name,
           ]),
