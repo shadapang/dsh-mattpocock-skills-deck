@@ -247,6 +247,11 @@ export default {
 
     harness.handle('wf.cwd', async function (args: WfArgs) { const h = await _sessLife(); return h.handleCwd(args) })
 
+    // Bot 会话判定（只读 ds-bot state，不改它；肖哥口径：Bot 会话里「新建需求」= 注入当前对话，不开新会话）
+    let _botSessP: Promise<any> | null = null
+    function _botSess(): Promise<any> { if (!_botSessP) _botSessP = (async function(){ const mod = await import('./botSessions.js'); return mod.createBotSessions({ logCtx: logCtx }) })(); return _botSessP }
+    harness.handle('wf.isBotSession', async function (args: WfArgs) { const h = await _botSess(); return h.handleIsBotSession(args) })
+
     // #179 回切自愈：空 cwd 仍兜 DEFAULT_CWD 作最后兜底（避免“没有仓库”空白），但客户端已保证同 sid 切工作区亦触发，空窗极短
     harness.handle('wf.snapshot', async function (args: WfArgs) { const h = await _sessSnap(); return h.handleSnapshot(args) })
 
