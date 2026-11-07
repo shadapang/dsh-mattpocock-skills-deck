@@ -47,6 +47,22 @@ zh:
   list.errFull: 快照加载失败：{err}
   list.restFallback: GraphQL 配额已耗尽，已切换 REST 通道（数据可能略旧，配额恢复后自动回切）
   list.none: 暂无
+  list.viewCards: 任务卡
+  list.viewFlow: 工作流
+  wf.fold: 收起
+  wf.unfold: 展开
+  wf.runLane: 按这条工作流执行
+  wf.runLaneN: "{n} 张"
+  wf.runLaneShort: 执行 · {n}
+  wf.runAllTitle: 按依赖顺序推进这条工作流剩下的任务卡（一次最多 2 张，逐张验收）
+  wf.noneLeft: 全部完成
+  wf.pct: "{closed} / {total} 已完成"
+  wf.pctRunning: "{closed} / {total} 已完成 · 在做 {running}"
+  wf.foldedNext: 已折叠 · 下一站 {next}
+  wf.foldedDone: 已折叠 · 全部完成 {closed}/{total}
+  wf.summary: "可接 {ready} · 排队 {queued} · 被挡 {blocked}"
+  wf.dirHint: 目录：{dir}
+  wf.dirOnly: 目录：{dir}（这条工作流没有地图/规格标题）
   list.closedN: 已关闭 {n}（已加载 {x}）
   list.partial: 这份清单不全
   list.partialTitle: ISSUE 未完全加载，体检可能遗漏。
@@ -295,6 +311,22 @@ en:
   list.errFull: "Snapshot failed: {err}"
   list.restFallback: GraphQL quota exhausted — switched to REST channel (data may be slightly stale; auto-reverts when quota resets)
   list.none: None
+  list.viewCards: Cards
+  list.viewFlow: Workflow
+  wf.fold: Collapse
+  wf.unfold: Expand
+  wf.runLane: Run this workflow
+  wf.runLaneN: "{n} left"
+  wf.runLaneShort: Run · {n}
+  wf.runAllTitle: Advance the remaining tickets of this workflow in dependency order (at most 2 at a time, each verified)
+  wf.noneLeft: All done
+  wf.pct: "{closed} / {total} done"
+  wf.pctRunning: "{closed} / {total} done · {running} in progress"
+  wf.foldedNext: Collapsed · next {next}
+  wf.foldedDone: Collapsed · all done {closed}/{total}
+  wf.summary: "{ready} ready · {queued} queued · {blocked} blocked"
+  wf.dirHint: "Folder: {dir}"
+  wf.dirOnly: "Folder: {dir} (this workflow has no map/spec title)"
   list.closedN: Closed {n} ({x} loaded)
   list.partial: This list is incomplete
   list.partialTitle: ISSUEs not fully loaded — the health check may miss some.

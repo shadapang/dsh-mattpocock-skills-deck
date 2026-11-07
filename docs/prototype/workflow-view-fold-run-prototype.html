@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 · 工作流视图：折叠 + 按工作流执行（3 变体）</title>
+<!--
+  PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
+
+  这一页只回答一个问题：deck 面板的「工作流视图」在加了「折叠」和「按工作流执行」之后，
+  到底该长什么样、信息层级怎么排、执行入口放哪里最顺手。
+
+  三个变体结构不同（不是换色）：
+    A · 现状基线：一条泳道一叠分层卡片 + 层间连线；折叠在泳道头，执行是头上一颗小按钮。
+    B · 路线图：每条工作流是一条竖轨，票是轨道上的站点；执行入口是头部的大 CTA。
+    C · 清单表：不画链，票排成紧凑表格（状态 / 编号 / 标题 / 挡路），执行入口在工具条。
+
+  用法：?variant=A|B|C 切换，底部漂浮条左右箭头或键盘 ←/→ 也能切；
+        面板宽度 520 / 330 两档可在漂浮条上切。数据是编的，形状照真实快照（票号、状态、blockedBy）。
+-->
+<style>
+  :root{
+    --bg:#0c0e12; --panel:#16181d; --panel2:#1b1e24; --panel3:#13161b;
+    --border:#2a2d35; --border2:#3a3f4a;
+    --text:#e6edf3; --muted:#a1a1aa; --caption:#8b8b95;
+    --closed:#3fb950; --ready:#c084fc; --running:#58a6ff; --blocked:#d8c58a; --queued:#8b8b95;
+    --mono:Consolas,"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  .stage{display:flex;gap:28px;align-items:flex-start;padding:22px 24px 90px}
+  .note{width:330px;flex:0 0 330px;color:var(--muted);font-size:12.5px}
+  .note h1{font-size:15px;color:var(--text);margin:0 0 8px}
+  .note b{color:#cdb8ff}
+  .note ol{padding-left:18px;margin:8px 0}
+  .note li{margin:6px 0}
+  .note code{font-family:var(--mono);font-size:11.5px;background:#1b1e24;border:1px solid var(--border);border-radius:4px;padding:1px 4px}
+  .stagepanel{flex:0 0 auto}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden;width:520px;transition:width .15s ease}
+  .panel[data-w="narrow"]{width:330px}
+  .panel-head{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);background:#14161b}
+  .panel-head .tabs{display:flex;gap:14px;font-size:12.5px;color:var(--muted)}
+  .panel-head .tabs b{color:var(--text);font-weight:600}
+  .panel-head .right{margin-left:auto;display:flex;gap:6px;align-items:center;font-size:11px;color:var(--caption)}
+  .seg{display:inline-flex;border:1px solid var(--border2);border-radius:7px;overflow:hidden}
+  .seg span{padding:3px 10px;font-size:11.5px;color:var(--muted);cursor:default}
+  .seg span.on{background:#2a2340;color:#dcd0ff}
+  .panel-body{padding:10px 12px 16px;max-height:78vh;overflow:auto}
+  .panel-body::-webkit-scrollbar{width:8px}
+  .panel-body::-webkit-scrollbar-thumb{background:#2a2d35;border-radius:4px}
+
+  /* ---------- 通用：状态色与徽标 ---------- */
+  .dot{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
+  .st{font-size:10.5px;padding:0 5px;border-radius:4px;border:1px solid transparent;flex:none;white-space:nowrap}
+  .st.closed{color:var(--closed);background:#16251b;border-color:#2c5138}
+  .st.ready{color:var(--ready);background:#211a2e;border-color:#4a3a6b}
+  .st.running{color:var(--running);background:#161f29;border-color:#2b4766}
+  .st.blocked{color:var(--blocked);background:#221d12;border-color:#4a4026}
+  .st.queued{color:var(--queued);background:#1b1e24;border-color:#3a3f4a}
+
+  /* ================= A · 现状基线 ================= */
+  .lane{border:1px solid var(--border);border-radius:10px;background:var(--panel3);padding:10px;margin-bottom:10px}
+  .lane-head{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;margin-bottom:8px}
+  .lane-head .chev{font-size:10px;color:var(--caption);width:10px;flex:none}
+  .lane-head .name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lane-head .meta{margin-left:auto;font-size:11px;color:var(--caption);font-family:var(--mono);flex:none}
+  .btn{display:inline-flex;align-items:center;gap:4px;border:1px solid transparent;border-radius:6px;background:#8b6bd6;color:#fff;font-size:11px;height:22px;padding:0 8px;cursor:pointer;flex:none}
+  .btn:hover{filter:brightness(1.1)}
+  .btn.ghost{background:transparent;border-color:var(--border2);color:var(--muted)}
+  .btn.done{background:transparent;border-color:#2c5138;color:var(--closed)}
+  .bar{height:4px;border-radius:3px;background:#23262e;overflow:hidden;margin-bottom:8px}
+  .bar i{display:block;height:100%;background:var(--closed)}
+  .focus{font-size:11px;color:var(--muted);margin-bottom:8px}
+  .sum{font-size:11px;color:var(--caption)}
+  .layers{display:flex;flex-direction:column}
+  .conn{height:18px;display:flex;justify-content:center;position:relative}
+  .conn i{width:1.4px;height:100%;background:#4a4258}
+  .conn b{position:absolute;bottom:0;left:50%;margin-left:-3px;width:0;height:0;border-left:3px solid transparent;border-right:3px solid transparent;border-top:5px solid #4a4258}
+  .row{display:flex;gap:8px;align-items:stretch}
+  .card{flex:1 1 0;min-width:0;border:1px solid;border-radius:9px;padding:7px 9px;cursor:pointer}
+  .card .top{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--caption);font-family:var(--mono)}
+  .card .top .s{margin-left:auto}
+  .card .title{font-size:12.5px;line-height:1.4;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card .sub{font-size:10.5px;margin-top:5px}
+  .card.closed{border-color:#2c5138;background:#16251b;opacity:.62}
+  .card.ready{border-color:#4a3a6b;background:#211a2e}
+  .card.running{border-color:#2b4766;background:#161f29}
+  .card.blocked{border-color:#4a4026;background:#221d12}
+  .card.queued{border-color:#3a3f4a;background:#1b1e24}
+
+  /* ================= B · 路线图 ================= */
+  .rm{border:1px solid var(--border);border-radius:12px;background:linear-gradient(180deg,#151821,#111319);padding:12px;margin-bottom:12px}
+  .rm-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:4px}
+  .rm-head .nm{font-size:13.5px;font-weight:600;letter-spacing:.2px}
+  .rm-head .pct{font-family:var(--mono);font-size:11px;color:var(--caption);margin-top:2px}
+  .rm-head .cta{margin-left:auto;display:inline-flex;align-items:center;gap:6px;background:#7c5bd6;color:#fff;border:none;border-radius:8px;height:30px;padding:0 12px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 0 0 1px #9d7ff0 inset}
+  .rm-head .cta:hover{background:#8b6bd6}
+  .rm-head .cta.all{background:transparent;color:var(--closed);border:1px solid #2c5138;box-shadow:none;cursor:default}
+  .rm-rail{position:relative;margin-top:10px;padding-left:22px}
+  .rm-rail:before{content:"";position:absolute;left:8px;top:6px;bottom:8px;width:1.5px;background:#2f3340}
+  .rm-stop{position:relative;padding:7px 0 7px 6px;cursor:pointer;border-radius:8px}
+  .rm-stop:hover{background:#181b22}
+  .rm-stop .node{position:absolute;left:-20px;top:13px;width:11px;height:11px;border-radius:50%;border:2px solid #2f3340;background:#111319}
+  .rm-stop.ready .node{border-color:var(--ready);background:var(--ready);box-shadow:0 0 0 4px rgba(192,132,252,.14)}
+  .rm-stop.running .node{border-color:var(--running);background:var(--running)}
+  .rm-stop.blocked .node{border-color:var(--blocked);background:#111319;border-style:dashed}
+  .rm-stop.queued .node{border-color:#4a4f5c;background:#111319}
+  .rm-stop.closed .node{border-color:#2c5138;background:#3fb950;opacity:.55}
+  .rm-stop .line1{display:flex;align-items:center;gap:7px;font-size:12.5px}
+  .rm-stop .line1 .no{font-family:var(--mono);font-size:10.5px;color:var(--caption);flex:none}
+  .rm-stop .line1 .tt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rm-stop.closed .line1 .tt{color:#7f8a83;text-decoration:line-through;opacity:.75}
+  .rm-stop .line2{font-size:10.5px;color:var(--caption);margin-left:32px;margin-top:1px}
+  .rm-stop.ready .line2{color:var(--ready)}
+  .rm-stop.blocked .line2{color:var(--blocked)}
+  .rm-stop.running .line2{color:var(--running)}
+  .rm-folded{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:8px;margin-top:8px}
+  .rm-folded b{color:var(--ready);font-weight:600}
+
+  /* ================= C · 清单表 ================= */
+  .tb{border:1px solid var(--border);border-radius:10px;background:var(--panel3);margin-bottom:10px;overflow:hidden}
+  .tb-head{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);background:#171a20;cursor:pointer;user-select:none}
+  .tb-head .nm{font-size:12.5px;font-weight:600}
+  .tb-head .mini{width:64px;height:4px;border-radius:2px;background:#23262e;overflow:hidden;flex:none}
+  .tb-head .mini i{display:block;height:100%;background:var(--closed)}
+  .tb-head .cnt{font-size:10.5px;color:var(--caption);font-family:var(--mono);flex:none}
+  .tb-head .run{margin-left:auto;border:1px solid #4a3a6b;background:#211a2e;color:var(--ready);border-radius:6px;height:22px;padding:0 8px;font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+  .tb-head .run:hover{background:#2a2140}
+  .tb-head .run:disabled{border-color:#2c5138;color:var(--closed);background:transparent;cursor:default}
+  .tb-row{display:grid;grid-template-columns:52px 44px 1fr 78px;gap:6px;align-items:center;padding:6px 10px;font-size:12px;border-top:1px solid #20232b;cursor:pointer}
+  .tb-row:first-of-type{border-top:none}
+  .tb-row:hover{background:#181b22}
+  .tb-row .no{font-family:var(--mono);font-size:10.5px;color:var(--caption)}
+  .tb-row .tt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tb-row.closed .tt{color:#7f8a83;text-decoration:line-through}
+  .tb-row .blk{font-size:10.5px;color:var(--blocked);text-align:right;font-family:var(--mono)}
+  .tb-row .blk.none{color:#3a3f4a}
+  .tb-folded{padding:8px 10px;font-size:11px;color:var(--caption);display:flex;gap:10px;align-items:center}
+  .tb-folded b{color:var(--ready);font-weight:600}
+
+  .panel[data-w="narrow"] .panel-head .right{display:none}
+  .panel[data-w="narrow"] .panel-head .tabs span{display:none}
+  .panel[data-w="narrow"] .panel-head .tabs b{display:inline}
+  .panel[data-w="narrow"] .tb-head .nm{max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ---------- 漂浮切换条 ---------- */
+  .switcher{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;background:#e8e8ee;color:#15161a;border-radius:999px;padding:7px 10px;box-shadow:0 8px 30px rgba(0,0,0,.5);font-size:12.5px;z-index:50}
+  .switcher button{border:none;background:#15161a;color:#fff;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:13px;line-height:1}
+  .switcher .label{min-width:210px;text-align:center;font-weight:600}
+  .switcher .label small{display:block;font-weight:400;color:#5c5f6a;font-size:10.5px;margin-top:-1px}
+  .switcher .chip{border:1px solid #c9cad4;background:transparent;color:#15161a;border-radius:999px;height:26px;width:auto;padding:0 11px;font-size:11.5px;cursor:pointer}
+  .switcher .chip.on{background:#15161a;color:#fff;border-color:#15161a}
+  .switcher .state{font-size:10.5px;color:#5c5f6a;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  .toast{position:fixed;left:50%;bottom:74px;transform:translateX(-50%);background:#232634;border:1px solid #3a3f4a;color:#e6edf3;font-size:12px;border-radius:8px;padding:8px 12px;opacity:0;pointer-events:none;transition:opacity .15s;z-index:60}
+  .toast.on{opacity:1}
+
+  @media (max-width:1100px){ .note{display:none} }
+</style>
+</head>
+<body>
+<div class="stage">
+  <aside class="note">
+    <h1>工作流视图：折叠 + 按工作流执行</h1>
+    <p>要定的是三件事：<b>折叠怎么让人知道里面还有货</b>、<b>「执行全部」放哪最顺手</b>、<b>一条泳道里信息怎么排</b>。</p>
+    <ol>
+      <li><b>A · 现状基线</b>：分层卡片 + 连线，折叠在泳道头，执行是头上一颗小按钮。</li>
+      <li><b>B · 路线图</b>：竖轨 + 站点，头部大 CTA，折叠后只剩「下一站」。</li>
+      <li><b>C · 清单表</b>：不画链，票排成表（状态 / 编号 / 标题 / 挡路），执行在工具条。</li>
+    </ol>
+    <p>底部白色药丸：左右箭头 / 键盘 ← → 切变体；右边两档宽度（520 / 330）验证窄面板。</p>
+    <p>数据是编的，形状照真实快照：票号、状态、blockedBy、认领人。交互只做只读：点卡片=打开票（模拟）、点执行=注入任务书（模拟）。</p>
+  </aside>
+
+  <div class="stagepanel">
+    <div class="panel" id="panel" data-w="wide">
+      <div class="panel-head">
+        <div class="tabs"><b>列表</b><span>技能</span><span>版本管理</span><span>环境检查</span></div>
+        <div class="right"><span>2 可接 · 0 阻塞 · 55 已关闭</span></div>
+      </div>
+      <div class="panel-body" id="view"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="switcher">
+  <button id="prev" title="上一个变体（←）">←</button>
+  <div class="label" id="label">A<small>现状基线</small></div>
+  <button id="next" title="下一个变体（→）">→</button>
+  <button class="chip" id="w520">520</button>
+  <button class="chip on" id="w330">330</button>
+  <span class="state" id="state"></span>
+</div>
+
+<script>
+/* ------------------------------------------------------------------
+   数据：编的，形状照真实快照（effortId / number / state / blockedBy / assignees）
+   ------------------------------------------------------------------ */
+const DATA = [
+  { effort: 'distillation-gap', tickets: [
+    { n: 1, title: '决策：是否复活「蒸馏日报」链路…', state: 'closed' },
+    { n: 2, title: '决策：两条 2026-07-19 已失效的旧自动化…', state: 'closed' },
+    { n: 3, title: '决策：蒸馏空线（经沉淀(0)-md）要不要…', state: 'closed' },
+    { n: 4, title: 'conversations 归档键自 2026-10-19 更新：日…', state: 'closed' },
+    { n: 5, title: '周报与日报抢同一路径：knowledge-distill…', state: 'closed' },
+  ]},
+  { effort: 'handover-audit', tickets: [
+    { n: 1, title: '读源骨架与溯源一致性判据（tracer）', state: 'closed' },
+    { n: 2, title: '任务归属覆盖率判据', state: 'closed', blockedBy: [1] },
+    { n: 3, title: '路径有效性判据', state: 'closed', blockedBy: [2] },
+    { n: 4, title: '事实 JSON 定稿与既有判据接入', state: 'closed', blockedBy: [1] },
+    { n: 5, title: '交接报告渲染', state: 'open', blockedBy: [4] },
+    { n: 6, title: '卷 A 人工判断与复核指南', state: 'open', blockedBy: [5] },
+    { n: 7, title: '重建脚本干跑版', state: 'open' },
+    { n: 8, title: '重建脚本实测与冒烟判据', state: 'open', blockedBy: [7] },
+  ]},
+  { effort: 'memory-governance', tickets: [
+    { n: 1, title: '记忆留存与清理口子对齐', state: 'closed' },
+    { n: 2, title: '跨会话记忆读写边界', state: 'closed', blockedBy: [1] },
+  ]},
+  { effort: 'release-audit', tickets: [
+    { n: 9, title: '发布前清单逐项核对', state: 'open', assignees: ['lead'] },
+    { n: 10, title: '回滚演练与观察窗', state: 'open', blockedBy: [9] },
+  ]},
+];
+
+/* ------------------------------------------------------------------
+   判定：和插件 workflowLayout.ts 同一套口径
+   ------------------------------------------------------------------ */
+const WIP = 1;
+function analyze(lane) {
+  const tickets = lane.tickets.map((x) => ({ ...x, key: String(x.n) }));
+  const byKey = new Map(tickets.map((x) => [x.key, x]));
+  const memo = new Map();
+  const depthOf = (key, stack) => {
+    if (memo.has(key)) return memo.get(key);
+    if (stack.has(key)) return 0;
+    const x = byKey.get(key);
+    if (!x) return 0;
+    stack.add(key);
+    let d = 0;
+    for (const b of (x.blockedBy || [])) {
+      const bk = String(b);
+      if (!byKey.has(bk)) continue;
+      d = Math.max(d, depthOf(bk, stack) + 1);
+    }
+    stack.delete(key);
+    memo.set(key, d);
+    return d;
+  };
+  for (const x of tickets) x.depth = depthOf(x.key, new Set());
+
+  for (const x of tickets) {
+    if (x.state === 'closed') x.wf = 'closed';
+    else if ((x.assignees || []).length) x.wf = 'running';
+    else if ((x.blockedBy || []).some((b) => { const d = byKey.get(String(b)); return d && d.state !== 'closed'; })) x.wf = 'blocked';
+    else x.wf = 'ready';
+  }
+  const cand = tickets.filter((x) => x.wf === 'ready').sort((a, b) => (a.depth - b.depth) || (a.n - b.n));
+  let allow = Math.max(0, WIP - tickets.filter((x) => x.wf === 'running').length);
+  for (const x of cand) { if (allow > 0) allow--; else x.wf = 'queued'; }
+  const queued = tickets.filter((x) => x.wf === 'queued').sort((a, b) => (a.depth - b.depth) || (a.n - b.n));
+  queued.forEach((x, i) => { x.queuePos = i + 1; });
+
+  const layers = [];
+  for (const x of tickets) (layers[x.depth] = layers[x.depth] || []).push(x);
+  const cnt = (s) => tickets.filter((x) => x.wf === s).length;
+  const focus = tickets.find((x) => x.wf === 'running') || cand[0] || null;
+  return {
+    effort: lane.effort, tickets, layers,
+    total: tickets.length, closed: cnt('closed'), ready: cnt('ready'),
+    queued: cnt('queued'), blocked: cnt('blocked'), running: cnt('running'),
+    focus,
+  };
+}
+const LANES = DATA.map(analyze);
+
+/* ------------------------------------------------------------------
+   状态与工具
+   ------------------------------------------------------------------ */
+const state = {
+  variant: 'A',
+  width: 'wide',
+  folded: new Set(),
+};
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const stName = { closed: '已关闭', ready: '可接', running: '在做', blocked: '被挡', queued: '排队' };
+const subOf = (c) => c.wf === 'ready' ? '现在接这一张'
+  : c.wf === 'running' ? ('别人在做 · ' + (c.assignees || []).join('、'))
+  : c.wf === 'queued' ? ('排队第 ' + c.queuePos + ' 张')
+  : c.wf === 'blocked' ? ('被 ' + (c.blockedBy || []).map((b) => '#' + b).join('、') + ' 挡住')
+  : '';
+const canRun = (l) => (l.total - l.closed) > 0;
+const nextTitle = (l) => l.focus ? ('#' + l.focus.n + ' ' + l.focus.title) : '无';
+const summaryOf = (l) => (l.closed === l.total)
+  ? ('全部完成 ' + l.closed + '/' + l.total)
+  : ([l.ready ? ('可接 ' + l.ready) : '', l.queued ? ('排队 ' + l.queued) : '', l.blocked ? ('被挡 ' + l.blocked) : '', l.running ? ('在做 ' + l.running) : ''].filter(Boolean).join(' · ') || '无待办');
+const headMeta = (l, narrow) => '已完成 ' + l.closed + '/' + l.total + (narrow ? '' : ((l.running ? ' · 在做 ' + l.running : '') + (l.queued ? ' · 排队 ' + l.queued : '')));
+
+function toggleFold(effort) {
+  if (state.folded.has(effort)) state.folded.delete(effort); else state.folded.add(effort);
+  render();
+}
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('on'), 1600);
+}
+function openTicket(n) { toast('打开票 #' + n + '（原型只读，不跳转）'); }
+function injectRun(l) {
+  const left = l.total - l.closed;
+  toast('已注入任务书：' + l.effort + ' · 还剩 ' + left + ' 张（模拟）');
+}
+
+/* ------------------------------------------------------------------
+   A · 现状基线：分层卡片 + 连线
+   ------------------------------------------------------------------ */
+function renderA() {
+  return LANES.map((l) => {
+    const folded = state.folded.has(l.effort);
+    const cardsOf = (c) => {
+      const sub = subOf(c);
+      return '<div class="card ' + c.wf + '" onclick="openTicket(' + c.n + ')">' +
+        '<div class="top"><span class="dot" style="background:' + stateColor(c.wf) + '"></span><span>#' + c.n + '</span><span class="s st ' + c.wf + '">' + stName[c.wf] + '</span></div>' +
+        '<div class="title">' + esc(c.title) + '</div>' +
+        (sub ? '<div class="sub" style="color:' + stateColor(c.wf) + '">' + esc(sub) + '</div>' : '') +
+      '</div>';
+    };
+    let layers = '';
+    for (let d = 0; d < l.layers.length; d++) {
+      const row = l.layers[d] || [];
+      if (!row.length) continue;
+      layers += (d > 0 ? '<div class="conn"><i></i><b></b></div>' : '') +
+        '<div class="row" style="flex-direction:' + (state.width === 'narrow' ? 'column' : 'row') + '">' +
+        row.map(cardsOf).join('') + '</div>';
+    }
+    return '<div class="lane">' +
+      '<div class="lane-head" onclick="toggleFold(\'' + esc(l.effort) + '\')">' +
+        '<span class="chev">' + (folded ? '▸' : '▾') + '</span>' +
+        '<span class="name">' + esc(l.effort) + '</span>' +
+        '<span class="meta">' + headMeta(l, state.width === 'narrow') + '</span>' +
+        (canRun(l)
+          ? '<button class="btn" title="按依赖顺序推进这条工作流" onclick="event.stopPropagation();injectRun(LANES_BY[\'' + esc(l.effort) + '\'])">▶ ' + (state.width === 'narrow' ? (l.total - l.closed) : ('执行全部 · ' + (l.total - l.closed))) + '</button>'
+          : '<span class="st closed">全部完成</span>') +
+      '</div>' +
+      '<div class="bar"><i style="width:' + (l.total ? Math.round(l.closed / l.total * 100) : 0) + '%"></i></div>' +
+      (l.focus ? '<div class="focus">当前这一张：#' + l.focus.n + ' ' + (l.focus.wf === 'running' ? '（在做：' + (l.focus.assignees || []).join('、') + '）' : '（可接）') + '</div>' : '') +
+      (folded
+        ? '<div class="sum">' + summaryOf(l) + '</div>'
+        : '<div class="layers">' + layers + '</div>') +
+    '</div>';
+  }).join('');
+}
+function stateColor(wf) {
+  return { closed: '#3fb950', ready: '#c084fc', running: '#58a6ff', blocked: '#d8c58a', queued: '#8b8b95' }[wf] || '#8b8b95';
+}
+
+/* ------------------------------------------------------------------
+   B · 路线图：竖轨 + 站点 + 头部大 CTA
+   ------------------------------------------------------------------ */
+function renderB() {
+  return LANES.map((l) => {
+    const folded = state.folded.has(l.effort);
+    const stops = l.tickets
+      .slice()
+      .sort((a, b) => (a.depth - b.depth) || (a.n - b.n))
+      .map((c) => {
+        const sub = c.wf === 'closed' ? '' : (subOf(c) || stName[c.wf]);
+        return '<div class="rm-stop ' + c.wf + '" onclick="openTicket(' + c.n + ')">' +
+          '<span class="node"></span>' +
+          '<div class="line1"><span class="no">#' + c.n + '</span><span class="tt">' + esc(c.title) + '</span></div>' +
+          (sub ? '<div class="line2">' + esc(sub) + '</div>' : '') +
+        '</div>';
+      }).join('');
+    return '<div class="rm">' +
+      '<div class="rm-head" onclick="toggleFold(\'' + esc(l.effort) + '\')" style="cursor:pointer">' +
+        '<div><div class="nm">' + (folded ? '▸ ' : '▾ ') + esc(l.effort) + '</div><div class="pct">' + l.closed + ' / ' + l.total + ' 已完成' + (l.running ? ' · 在做 ' + l.running : '') + '</div></div>' +
+        (canRun(l)
+          ? '<button class="cta" onclick="event.stopPropagation();injectRun(LANES_BY[\'' + esc(l.effort) + '\'])">▶ ' + (state.width === 'narrow' ? ('执行 · ' + (l.total - l.closed)) : ('按这条工作流执行 <span style="opacity:.75;font-weight:400">' + (l.total - l.closed) + ' 张</span>')) + '</button>'
+          : '<button class="cta all" disabled>✓ 全部完成</button>') +
+      '</div>' +
+      '<div class="bar" style="margin:8px 0 0"><i style="width:' + (l.total ? Math.round(l.closed / l.total * 100) : 0) + '%"></i></div>' +
+      (folded
+        ? '<div class="rm-folded">▸ 已折叠 · 下一站 <b>' + esc(nextTitle(l)) + '</b> · ' + summaryOf(l) + '</div>'
+        : '<div class="rm-rail">' + stops + '</div>') +
+    '</div>';
+  }).join('');
+}
+
+/* ------------------------------------------------------------------
+   C · 清单表：状态 / 编号 / 标题 / 挡路
+   ------------------------------------------------------------------ */
+function renderC() {
+  return LANES.map((l) => {
+    const folded = state.folded.has(l.effort);
+    const openBlockers = (c) => (c.blockedBy || []).filter((b) => {
+      const dep = l.tickets.find((x) => x.n === b);
+      return dep && dep.state !== 'closed';
+    });
+    const rows = l.tickets
+      .slice()
+      .sort((a, b) => (a.depth - b.depth) || (a.n - b.n))
+      .map((c) => {
+        const ob = openBlockers(c);
+        const blk = ob.length ? '等 ' + ob.map((b) => '#' + b).join('、') : '—';
+        return '<div class="tb-row ' + c.wf + '" onclick="openTicket(' + c.n + ')" style="padding-left:' + (10 + c.depth * 14) + 'px">' +
+          '<span class="st ' + c.wf + '" style="justify-self:start">' + stName[c.wf] + '</span>' +
+          '<span class="no">#' + c.n + '</span>' +
+          '<span class="tt">' + esc(c.title) + '</span>' +
+          '<span class="blk ' + (ob.length ? '' : 'none') + '">' + blk + '</span>' +
+        '</div>';
+      }).join('');
+    return '<div class="tb">' +
+      '<div class="tb-head" onclick="toggleFold(\'' + esc(l.effort) + '\')">' +
+        '<span class="chev" style="font-size:10px;color:var(--caption);width:10px">' + (folded ? '▸' : '▾') + '</span>' +
+        '<span class="nm">' + esc(l.effort) + '</span>' +
+        '<span class="mini"><i style="width:' + (l.total ? Math.round(l.closed / l.total * 100) : 0) + '%"></i></span>' +
+        '<span class="cnt">' + l.closed + '/' + l.total + '</span>' +
+        (canRun(l)
+          ? '<button class="run" onclick="event.stopPropagation();injectRun(LANES_BY[\'' + esc(l.effort) + '\'])">▶ ' + (state.width === 'narrow' ? (l.total - l.closed) : ('执行全部 · ' + (l.total - l.closed))) + '</button>'
+          : '<button class="run" disabled>✓' + (state.width === 'narrow' ? '' : ' 全部完成') + '</button>') +
+      '</div>' +
+      (folded
+        ? '<div class="tb-folded">▸ 已折叠 · 下一张 <b>' + esc(nextTitle(l)) + '</b><span>' + summaryOf(l) + '</span></div>'
+        : rows) +
+    '</div>';
+  }).join('');
+}
+
+/* ------------------------------------------------------------------
+   切换器
+   ------------------------------------------------------------------ */
+const LANES_BY = {};
+LANES.forEach((l) => { LANES_BY[l.effort] = l; });
+window.LANES_BY = LANES_BY;
+window.openTicket = openTicket;
+window.injectRun = injectRun;
+window.toggleFold = toggleFold;
+
+const VARIANTS = [
+  { key: 'A', name: '现状基线', render: renderA },
+  { key: 'B', name: '路线图', render: renderB },
+  { key: 'C', name: '清单表', render: renderC },
+];
+
+function render() {
+  const v = VARIANTS.find((x) => x.key === state.variant) || VARIANTS[0];
+  document.getElementById('view').innerHTML = v.render();
+  document.getElementById('label').innerHTML = v.key + '<small>' + v.name + '</small>';
+  document.getElementById('panel').dataset.w = state.width;
+  document.getElementById('w520').classList.toggle('on', state.width === 'wide');
+  document.getElementById('w330').classList.toggle('on', state.width === 'narrow');
+  document.getElementById('state').textContent =
+    '折叠：' + (state.folded.size ? [...state.folded].join('、') : '无');
+  const url = new URL(location.href);
+  url.searchParams.set('variant', v.key);
+  url.searchParams.set('w', state.width === 'wide' ? '520' : '330');
+  history.replaceState(null, '', url);
+}
+
+function cycle(step) {
+  const i = VARIANTS.findIndex((x) => x.key === state.variant);
+  state.variant = VARIANTS[(i + step + VARIANTS.length) % VARIANTS.length].key;
+  render();
+}
+
+document.getElementById('prev').onclick = () => cycle(-1);
+document.getElementById('next').onclick = () => cycle(1);
+document.getElementById('w520').onclick = () => { state.width = 'wide'; render(); };
+document.getElementById('w330').onclick = () => { state.width = 'narrow'; render(); };
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (e.key === 'ArrowLeft') { e.preventDefault(); cycle(-1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); cycle(1); }
+});
+
+const params = new URLSearchParams(location.search);
+if (params.get('variant')) state.variant = params.get('variant').toUpperCase();
+if (params.get('w') === '330') state.width = 'narrow';
+render();
+</script>
+</body>
+</html>

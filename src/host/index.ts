@@ -247,6 +247,11 @@ export default {
 
     harness.handle('wf.cwd', async function (args: WfArgs) { const h = await _sessLife(); return h.handleCwd(args) })
 
+    // Bot 会话判定（只读 ds-bot state，不改它；肖哥口径：Bot 会话里「新建需求」= 注入当前对话，不开新会话）
+    let _botSessP: Promise<any> | null = null
+    function _botSess(): Promise<any> { if (!_botSessP) _botSessP = (async function(){ const mod = await import('./botSessions.js'); return mod.createBotSessions({ logCtx: logCtx }) })(); return _botSessP }
+    harness.handle('wf.isBotSession', async function (args: WfArgs) { const h = await _botSess(); return h.handleIsBotSession(args) })
+
     // #179 回切自愈：空 cwd 仍兜 DEFAULT_CWD 作最后兜底（避免“没有仓库”空白），但客户端已保证同 sid 切工作区亦触发，空窗极短
     harness.handle('wf.snapshot', async function (args: WfArgs) { const h = await _sessSnap(); return h.handleSnapshot(args) })
 
@@ -342,7 +347,9 @@ export default {
       H.svc = { fs: fs, timer: timer, gc: function (...a: any[]) { return getCacheDir.apply(null, a) }, gp: function (...a: any[]) { return getPlatform.apply(null, a) }, st: _settings, cwd: DEFAULT_CWD };
       if (H.p) return H.p;
       H.p = (async function () {
-        const fsL: any = {}; ['resolve','readText','writeText','mkdir','processPath','listDir','unlink','lstat','stat','exists'].forEach(function (m: string) { Object.defineProperty(fsL, m, { configurable: true, get: function () { const f = H.svc.fs; return (f && typeof f[m] === 'function') ? function (...a: any[]) { return f[m].apply(f, a) } : undefined } }) });
+        // #1690：文件口搬进 src/host/logFsPort.ts 单源 —— 原先这行滑掉了 rename，导致日志永不轮转、
+        //   当日文件越写越大而每次写盘整篇读回再整篇写回，堆涨到 4GB 崩掉（详见该文件头）。
+        const fsL: any = (await import('./logFsPort.js')).buildLogFsPort(function () { return H.svc.fs });
         const tmL: any = {}; ['timeout','interval'].forEach(function (m: string) { Object.defineProperty(tmL, m, { configurable: true, get: function () { const t = H.svc.timer; return (t && typeof t[m] === 'function') ? function (...a: any[]) { return t[m].apply(t, a) } : undefined } }) });
         const gcL = function (...a: any[]) { return H.svc.gc.apply(null, a) }, gpL = function (...a: any[]) { return H.svc.gp.apply(null, a) };
         const ss = { get: function () { return H.svc.st().then(function (s: any) { return s.readDebugSwitchEnabled() }) }, set: function (on: any) { return H.svc.st().then(function (s: any) { return typeof s.writeDebugSwitchEnabled === 'function' ? s.writeDebugSwitchEnabled(on) : null }) } };

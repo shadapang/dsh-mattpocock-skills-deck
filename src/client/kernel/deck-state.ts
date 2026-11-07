@@ -64,6 +64,18 @@ export const isDeckClosed = function (cwd: any): boolean {
   try { return deckToolsOf(cwd) === DECK_TOOLS_OFF } catch (e) { return false }
 }
 
+// 这个工作区的 deck 工具箱「反正开没开」，**说不清时回 'unknown'**（读设置抛错）。
+// 为什么不能直接用 deckToolsOf：它对「读不到」一律按 on 兜底（为了不悄悄关掉用户的工具），
+// 而「新会话默认展开右侧面板」（#1672）不能按这个宽容口径走 —— 读不到就自动开，等于在用户明确
+// 关掉 deck 的工作区里每条会话都弹一次面板。实测触发路径：新工作区首帧 wf.getSettings 失败 →
+// deckToolsOf 回 on → 自动展开照开（#1672 的 1672-02 场景就是这样失败的）。
+// 所以自动展开只认「明确是 on」；off 与 unknown 一律不开（unknown 会跟着重试节奏再问几次）。
+export const deckToolsKnown = function (cwd: any): any {
+  try {
+    return deckFlagText(viewFlagOf(cwd, 'deckTools')) === DECK_TOOLS_OFF ? DECK_TOOLS_OFF : DECK_TOOLS_ON
+  } catch (e) { return 'unknown' }
+}
+
 // 设置页工作区名单上「还没点开过的工作区」是不是当前这一行：内核认不出这个目录的工作区根时返回 true。
 //   认不出根的意思是这个工作区还没被打开过（快照表里没有它的根，会话也没有报过根），点开关时会按名单路径先存一条临时记录；
 //   第一次打开并合并成功后，根认出来了，这里就回 false，行下面的小字自动消失。渲染层拿它和「这一行在不在名单上」一起决定小字显不显，

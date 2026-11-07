@@ -123,6 +123,27 @@ declare const ensureInjectFocusAtEnd: any; declare const deckPromptFiltered: any
         if (typeof resolveWorkspaceEntry === 'function') return resolveWorkspaceEntry(workspaces, cwd)
         return Promise.resolve({ wid: null, entry: null })
       }
+      // Bot 会话判定（肖哥口径：Bot 会话里点「新建需求」= 把提示词注入当前 Bot 对话，不开新会话）。
+      //   ds-bot 内部 isBotSession = chatOwners ∪ groupOwners，没有外露；改 ds-bot 又是 node_modules
+      //   （会被更新覆盖），所以这里只读它的 state（host 半边 wf.isBotSession），不改它一个字节。
+      const isBotSessionOf = function (sid: any): any {
+        if (typeof host === 'undefined' || typeof host.call !== 'function' || !sid) return Promise.resolve(false)
+        return host.call('wf.isBotSession', { id: String(sid) }).then(function (res: any) {
+          return !!(res && (res.isBot === true || (res.value && res.value.isBot === true)))
+        }).catch(function () { return false })
+      }
+      // 回读确认：uiWorkspace.openSession(target) 的签名是 (target): void —— 真身 replaceMain
+      //   是同步的 retain + selection.set + mainReference 替换，**不返回 promise、不等待 reference.ready**。
+      //   所以「有没有真正成为主区」只能回读：这条会话有没有被 mainView retain。
+      const __mainViewHas = function (sid: any): boolean {
+        try {
+          const snap = (sessions && typeof sessions.list.getSnapshot === 'function') ? sessions.list.getSnapshot() : null
+          const row = snap && snap.byId ? snap.byId[sid] : null
+          const mb = row && row.retainedBy
+          return !!(mb && typeof mb.mainView === 'number' && mb.mainView > 0)
+        } catch (e) { return false }
+      }
+      const __proceed = function () {
       ensureCwd().then(function (cwd: any) {
         if (!cwd) { try { log('info', 'newsession.decide', { entry: entryKind, textLen: String(text || '').length, curSidHash: dswsLogHash(String((st && st.sessionId) || '')), cwdHash: dswsLogHash(String(cwd || '')), cwdSource: cwdSource, wsResolved: 'no', wsSource: 'none', wsItems: 0, branch: 'fallback', reuseFrom: 'none', reuseSidHash: '', allowReuse: 'none', reuseSkip: '', createOpts: '', sidHash: '', outcome: 'empty-cwd', errorHash: '' }) } catch (eEC) {} doFallback(); return }
         ensureWorkspaceId(cwd).then(function (found: any) {
@@ -291,7 +312,13 @@ declare const ensureInjectFocusAtEnd: any; declare const deckPromptFiltered: any
             const __go742a = function () { try {
               let __u: any = null
               try { if (typeof ctx !== 'undefined' && ctx) { __u = (typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : null) || ctx.uiWorkspace || null } } catch (eG) {}
-              if (__u && typeof __u.openSession === 'function') { const __r = __u.openSession(sid); if (__r && typeof __r.then === 'function') { __r.then(__ok742a, __fail742a); return } __ok742a(); return }
+              if (__u && typeof __u.openSession === 'function') {
+                __u.openSession(sid)                                // 同步 void（同 create 分支）
+                if (__mainViewHas(sid)) { __ok742a(); return }
+                __fail742a()
+                doFallback()
+                return
+              }
               if (sessions && typeof sessions.open === 'function') { const __o = sessions.open(sid); if (__o && typeof __o.then === 'function') { __o.then(__ok742a, __fail742a); return } }
               __ok742a()
             } catch (eS742a) { try { __fail742a() } catch (eF) {} } }
@@ -377,7 +404,13 @@ declare const ensureInjectFocusAtEnd: any; declare const deckPromptFiltered: any
           const __go742b = function () { try {
             let __u: any = null
             try { if (typeof ctx !== 'undefined' && ctx) { __u = (typeof ctx.get === 'function' ? ctx.get('uiWorkspace') : null) || ctx.uiWorkspace || null } } catch (eG) {}
-            if (__u && typeof __u.openSession === 'function') { const __r = __u.openSession(sid); if (__r && typeof __r.then === 'function') { __r.then(__ok742b, __fail742b); return } __ok742b(); return }
+            if (__u && typeof __u.openSession === 'function') {
+              __u.openSession(sid)                                  // 同步 void：真身 replaceMain，不返回 promise、不等待 ready
+              if (__mainViewHas(sid)) { __ok742b(); return }        // 回读确认：真成为主区才算成功
+              __fail742b()                                          // 记 outcome:'open-failed' + 记账
+              doFallback()                                          // 回落：注入当前会话（Bot 会话场景就落在这里）
+              return
+            }
             if (sessions && typeof sessions.open === 'function') { const __o = sessions.open(sid); if (__o && typeof __o.then === 'function') { __o.then(__ok742b, __fail742b); return } }
             __ok742b()
           } catch (eS742b) { try { __fail742b() } catch (eF) {} } }
@@ -385,5 +418,12 @@ declare const ensureInjectFocusAtEnd: any; declare const deckPromptFiltered: any
         }).catch(function (err: any) { try { log('info', 'newsession.decide', { entry: entryKind, textLen: String(text || '').length, curSidHash: dswsLogHash(String(st.sessionId || '')), cwdHash: dswsLogHash(String(cwd || '')), cwdSource: cwdSource, wsResolved: wsResolved, wsSource: wsSource, wsItems: wsItems, branch: 'create', reuseFrom: 'none', reuseSidHash: '', allowReuse: 'none', reuseSkip: reuseSkip, createOpts: (workspaceId ? 'workspaceId' : 'cwd-only'), sidHash: '', outcome: 'create-failed', errorHash: dswsLogHash(dswsLogTrunc(String((err && err.message) || err), 120, 'error')) }) } catch (eLogCf) {} try { if (String((err && err.message) || '').indexOf('preset-blocked') >= 0) flash(st, tr('toast.newSessionPresetBlocked'), 'warn') } catch (eF) {} doFallback() })
         })
       })
+      }
+      // Bot 会话（ds-bot 的私聊/群聊会话）：直接注入当前对话，不开新会话。
+      //   —— 肖哥口径；那条路上 openSession 不产生可观测的成功（见诊断报告），注入才到得了用户手上。
+      isBotSessionOf(st && st.sessionId).then(function (isBot: boolean) {
+        if (isBot) { inject(st, text); return }
+        __proceed()
+      }).catch(function () { __proceed() })
     }
 

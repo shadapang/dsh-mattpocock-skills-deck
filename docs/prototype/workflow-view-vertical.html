@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>原型 v2 · 面板工作流视图（竖向，参考任务管理）</title>
+<!--
+  PROTOTYPE — 一次性原型，不是生产代码，不要合进主干。
+
+  v2 与 v1 的区别：工作流视图改成 **从上往下的树**（参考任务管理面板的视图结构）。
+    · 一条工作流 = 顶部根卡 + 下面的依赖树；
+    · 每张票一张横向卡（编号 / 状态 / 标题 / 负责人 / 验收进度 / 被谁阻塞）；
+    · 依赖深的排下面，父子之间竖线相连；一张卡有多个前置时，先向下汇成一条总线再落到该卡；
+    · 同一层互不依赖的票并排，外套虚线框标「并行 N 张」；
+    · 多条工作流上下排，各自可折叠。
+  为什么竖着：面板常驻在 330–520 宽的侧边栏，横向链必须左右拖；竖向只需上下滑，和现有列表的阅读方向一致。
+-->
+<style>
+:root{
+  --bg:#0c0e12; --panel:#16181d; --panel2:#1b1e24; --border:#2a2d35; --border2:#3a3f4a;
+  --text:#e6edf3; --muted:#a1a1aa; --caption:#8b8b95;
+  --purple:#c084fc; --green:#3fb950; --blue:#58a6ff; --gray:#6e7681;
+  --mono:Consolas,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.stage{display:flex;gap:26px;align-items:flex-start;padding:22px 24px 60px}
+.aside{width:320px;flex:0 0 320px;color:var(--muted);font-size:12.5px}
+.aside h1{font-size:15px;color:var(--text);margin:0 0 8px}
+.aside b{color:#cdb8ff}
+.aside .row{margin:7px 0}
+.aside code{font-family:var(--mono);font-size:12px;color:#e6edf3;background:#1b1e24;border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+.aside ul{margin:6px 0 0;padding-left:16px}
+.aside li{margin:4px 0}
+
+.panel{width:520px;flex:0 0 auto;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:width .18s ease}
+.panel.narrow{width:360px}
+.panel-head{display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--border);background:#101216}
+.panel-title{font-weight:600;font-size:13px}
+.head-actions{margin-left:auto;display:flex;gap:6px}
+.ico{border:1px solid var(--border2);background:#181b21;color:var(--muted);border-radius:5px;height:24px;min-width:24px;padding:0 6px;font-size:11px;cursor:pointer}
+.ico:hover{color:var(--text);border-color:#4a505d}
+.ico.on{color:#0c0e12;background:var(--purple);border-color:var(--purple);font-weight:600}
+.tabs{display:flex;align-items:center;gap:2px;padding:6px 8px 0;border-bottom:1px solid var(--border)}
+.tab{border:0;background:transparent;color:var(--muted);font-size:12.5px;padding:6px 10px;border-radius:6px 6px 0 0;cursor:pointer;border-bottom:2px solid transparent}
+.tab.active{color:var(--text);border-bottom-color:var(--purple)}
+.tab:disabled{opacity:.45;cursor:default}
+.tools{display:flex;align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--border2);border-radius:7px;overflow:hidden}
+.seg button{border:0;background:#181b21;color:var(--muted);font-size:12px;padding:5px 10px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--border2)}
+.seg button.on{background:#2a2140;color:#e6dcff}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}
+.chip{border:1px solid var(--border2);background:#181b21;color:var(--muted);font-size:11.5px;border-radius:999px;padding:3px 9px;cursor:pointer;white-space:nowrap}
+.chip.on{border-color:var(--purple);color:#e6dcff;background:#241b36}
+.chip .n{font-family:var(--mono);font-size:11px;color:var(--caption);margin-left:4px}
+.body{padding:10px;max-height:680px;overflow:auto}
+.view{display:none}
+.view.on{display:block}
+
+/* 任务卡视图（= 现状列表，不动）*/
+.group{margin-bottom:10px}
+.group-head{display:flex;align-items:center;gap:7px;padding:5px 4px;color:var(--caption);font-size:12px}
+.group-head .name{color:var(--text);font-weight:600;font-size:12.5px}
+.group-head .count{font-family:var(--mono);font-size:11px}
+.row{display:flex;align-items:center;gap:9px;padding:7px 9px;border:1px solid transparent;border-radius:8px;cursor:pointer}
+.row:hover{background:var(--panel2);border-color:var(--border)}
+.row .num{font-family:var(--mono);font-size:11.5px;color:var(--caption);width:26px;text-align:right;flex:0 0 auto}
+.row .t{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .meta{display:flex;gap:6px;align-items:center;flex:0 0 auto;font-size:11px;color:var(--caption)}
+
+/* ── 工作流视图（竖向树）── */
+.lane{border:1px solid var(--border);border-radius:10px;margin-bottom:12px;background:#13161b;overflow:hidden}
+.lane-head{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;user-select:none}
+.lane-head:hover{background:#171a20}
+.lane-head .chev{color:var(--caption);font-size:10px;transition:transform .15s}
+.lane.collapsed .lane-head .chev{transform:rotate(-90deg)}
+.lane-head .name{font-size:13px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lane-head .stat{font-family:var(--mono);font-size:11px;color:var(--caption);white-space:nowrap}
+.lane-head .bar{height:4px;width:48px;border-radius:3px;background:#23262e;overflow:hidden;margin-left:auto;flex:0 0 auto}
+.lane-head .bar i{display:block;height:100%;background:var(--green)}
+.tree{padding:10px}
+.lane.collapsed .tree{display:none}
+.root{border:1px solid #3a4150;background:#191d24;border-radius:9px;padding:8px 10px;cursor:pointer}
+.root .cn{font-family:var(--mono);font-size:10.5px;color:var(--caption)}
+.root .rt{font-size:13px;font-weight:600;margin-top:2px}
+.root .rf{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:10.5px;color:var(--caption)}
+.root .rf .bar{height:4px;flex:1;border-radius:3px;background:#23262e;overflow:hidden}
+.root .rf .bar i{display:block;height:100%;background:var(--green)}
+
+.conn{position:relative;height:24px}
+.conn svg{position:absolute;left:0;top:0;overflow:visible}
+.layer{display:flex;gap:10px;align-items:stretch}
+.parallel{position:relative;border:1px dashed #343946;border-radius:10px;padding:20px 8px 8px}
+.parallel .plabel{position:absolute;top:4px;left:9px;font-size:10.5px;color:var(--caption);font-family:var(--mono)}
+
+.card{border:1px solid var(--border2);border-radius:9px;background:#1b1e24;padding:8px 9px;cursor:pointer;transition:border-color .12s,box-shadow .12s;flex:1;min-width:0}
+.card:hover{border-color:#5b6270}
+.card.sel{border-color:var(--purple);box-shadow:0 0 0 1px var(--purple) inset}
+.card .cn{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;color:var(--caption)}
+.card .ct{font-size:12.5px;line-height:1.4;margin-top:3px}
+.card .cf{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:10.5px;color:var(--caption);flex-wrap:wrap}
+.card .blk{margin-top:5px;font-size:10.5px;color:#b9a87a}
+.card[data-status=closed]{opacity:.66}
+.card[data-status=closed] .ct{text-decoration:line-through;text-decoration-color:#3a3f4a}
+.card[data-status=running]{border-color:#2f5b86;background:#18222c}
+.card[data-status=blocked]{background:#1d1b16;border-color:#4a4026}
+.card[data-status=ready]{background:#1b1a24;border-color:#3f3358}
+.card[data-status=blocked] .ct,.card[data-status=blocked] .cn{color:#8d8574}
+
+.dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;display:inline-block}
+.dot.closed{background:var(--green)} .dot.running{background:var(--blue)} .dot.ready{background:var(--purple)} .dot.blocked{background:var(--gray)}
+.pill{font-size:10.5px;border-radius:999px;padding:1px 7px;border:1px solid var(--border2);color:var(--muted);white-space:nowrap}
+.pill.closed{color:#8ee6a0;border-color:#2c5138;background:#16251b}
+.pill.running{color:#a8cdff;border-color:#2b4766;background:#161f29}
+.pill.ready{color:#dcc6ff;border-color:#4a3a6b;background:#211a2e}
+.pill.blocked{color:#d8c58a;border-color:#4a4026;background:#221d12}
+.acc{font-family:var(--mono);font-size:10px;color:var(--caption)}
+
+.detail{border-top:1px solid var(--border);background:#101216;padding:9px 11px;display:none}
+.detail.on{display:block}
+.detail .dt{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600}
+.detail .dm{display:flex;gap:10px;flex-wrap:wrap;color:var(--caption);font-size:11.5px;margin-top:5px}
+.detail ul{margin:7px 0 0;padding-left:16px;color:var(--muted);font-size:11.5px}
+.detail .empty{color:var(--caption);font-size:12px}
+.hint{color:var(--caption);font-size:11.5px;padding:4px 2px}
+</style>
+</head>
+<body>
+<div class="stage">
+  <aside class="aside">
+    <h1>原型 v2：竖向工作流视图</h1>
+    <div class="row">按你说的改成<b>从上往下</b>，参考任务管理面板：根卡 → 依赖链 → 并行分叉。</div>
+    <ul>
+      <li>父子竖线相连，箭头指向下一张</li>
+      <li>同层互不依赖 → 并排，外套虚线框标「并行 N 张」</li>
+      <li>多前置汇到一张 → 先向下汇成一条总线再落到该卡</li>
+      <li>点卡选中 → 底部详情条；点泳道标题折叠</li>
+      <li>右上角切 <b>宽 / 窄</b>：窄态卡片变窄、组框仍不塌</li>
+    </ul>
+    <div class="row" style="margin-top:12px">与 v1（横向链）比：竖向只上下滑，不用左右拖，更适合 330–520 的侧边栏；代价是长链更占高度。</div>
+  </aside>
+
+  <section class="panel" id="panel">
+    <div class="panel-head">
+      <span class="panel-title">MattSkills <span style="color:#8b8b95;font-weight:400;font-size:12px">×</span></span>
+      <div class="head-actions">
+        <button class="ico" title="刷新">⟳ 刷新</button>
+        <button class="ico on" id="w-wide" onclick="setWidth(false)">宽</button>
+        <button class="ico" id="w-narrow" onclick="setWidth(true)">窄</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab active">列表</button>
+      <button class="tab" disabled>技能</button>
+      <button class="tab" disabled>版本管理</button>
+      <button class="tab" disabled>环境检查</button>
+    </div>
+    <div class="tools">
+      <div class="seg" id="seg">
+        <button data-view="cards" onclick="setView('cards')">任务卡视图</button>
+        <button class="on" data-view="flow" onclick="setView('flow')">工作流视图</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="body">
+      <div class="view" id="view-cards"></div>
+      <div class="view on" id="view-flow"></div>
+    </div>
+    <div class="detail" id="detail"><div class="empty">点一张卡片看详情（任务卡视图里点行也一样）</div></div>
+  </section>
+</div>
+
+<script>
+const DATA = [
+  { id: 'w1', name: '总仓补货水位（项目 A）', tickets: [
+    { key: '01', title: '导出 4.12 配送中心库存汇总表', status: 'closed', assignee: 'lead', acc: [1, 1], blockedBy: [] },
+    { key: '02', title: '解析 2.5 仓库管理规则里的 (s,S) 参数', status: 'closed', assignee: 'lead', acc: [1, 1], blockedBy: ['01'] },
+    { key: '03', title: '算 ROP / 目标 S / 可供 / 缺口', status: 'running', assignee: 'lead', acc: [1, 3], blockedBy: ['02'] },
+    { key: '04', title: '按缺口分档：待补 / 低于目标 / 达标 / 压货', status: 'ready', assignee: '', acc: [0, 2], blockedBy: ['03'] },
+    { key: '05', title: '出水位报告并归档证据', status: 'blocked', assignee: '', acc: [0, 3], blockedBy: ['04'] },
+  ]},
+  { id: 'w2', name: '台账倒挤成本（项目 B）', tickets: [
+    { key: '01', title: '确认 01_进销存 缺哪几组字段', status: 'closed', assignee: 'lead', acc: [2, 2], blockedBy: [] },
+    { key: '02', title: '直调 / 调拨入库补进台账', status: 'running', assignee: 'lead', acc: [1, 2], blockedBy: ['01'] },
+    { key: '03', title: '盘点 ≡ 05 但台账对不上：定位差异', status: 'ready', assignee: '', acc: [0, 2], blockedBy: ['01'] },
+    { key: '04', title: '重算月度成本并给出可用性结论', status: 'blocked', assignee: '', acc: [0, 3], blockedBy: ['02', '03'] },
+  ]},
+  { id: 'w3', name: '面板工作流视图（项目 C）', tickets: [
+    { key: '01', title: '原型：任务卡 / 工作流两视图', status: 'running', assignee: 'lead', acc: [0, 2], blockedBy: [] },
+    { key: '02', title: 'WorkflowView 组件：拓扑 + 连线', status: 'blocked', assignee: '', acc: [0, 3], blockedBy: ['01'] },
+    { key: '03', title: '接线到 ListTab 并记住视图选择', status: 'blocked', assignee: '', acc: [0, 2], blockedBy: ['02'] },
+    { key: '04', title: '门禁：顺序、连线、窄态', status: 'blocked', assignee: '', acc: [0, 3], blockedBy: ['03'] },
+  ]},
+]
+const STATUS_LABEL = { closed: '已关闭', running: '进行中', ready: '可做', blocked: '被阻塞' }
+const CONN_H = 26
+let view = 'flow', filter = 'all', selected = null
+const collapsed = {}
+const allTickets = () => DATA.flatMap(w => w.tickets)
+
+function statusOf(t) {
+  if (t.status === 'blocked') {
+    const open = (t.blockedBy || []).some(k => (allTickets().find(x => x.key === k) || {}).status !== 'closed')
+    return open ? 'blocked' : 'ready'
+  }
+  return t.status
+}
+const visible = t => filter === 'all' || statusOf(t) === filter
+
+function depths(tickets) {
+  const map = new Map(tickets.map(t => [t.key, t])), out = new Map()
+  const see = (k, stack) => {
+    if (out.has(k)) return out.get(k)
+    if (stack.has(k)) return 0
+    const t = map.get(k); if (!t) return 0
+    stack.add(k)
+    let d = 0
+    for (const b of t.blockedBy || []) d = Math.max(d, see(b, stack) + 1)
+    stack.delete(k); out.set(k, d); return d
+  }
+  for (const t of tickets) see(t.key, new Set())
+  return out
+}
+
+/* 宽度换算：按面板实际内容宽减去 padding，算每张卡的中心 x，供连线用 */
+function contentWidth() {
+  const panel = document.getElementById('panel')
+  return panel.getBoundingClientRect().width - 22 /* 面板左右 padding 10 + 边框 */ - 20 /* tree padding */
+}
+
+/* 一层里 n 张卡：宽度均分，中心 x 依次算出 */
+function centers(n, width) {
+  const gap = 10
+  const cw = n > 1 ? (width - gap * (n - 1)) / n : width
+  return { cw, xs: Array.from({ length: n }, (_, i) => i * (cw + gap) + cw / 2) }
+}
+
+/* 连线层：parents（上一层各卡中心 x）→ children（本层各卡中心 x），画竖线+总线+箭头 */
+function connector(parentXs, childXs, width) {
+  const paths = []
+  for (const px of parentXs) {
+    for (const cx of childXs) {
+      paths.push(`<path d="M${px} 0 V${CONN_H / 2} H${cx} V${CONN_H}" fill="none" stroke="#4a4258" stroke-width="1.4" marker-end="url(#arrow)"/>`)
+    }
+  }
+  return `<div class="conn"><svg width="${width}" height="${CONN_H}">
+    <defs><marker id="arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="#5a5468"/></marker></defs>${paths.join('')}</svg></div>`
+}
+
+function cardHtml(w, t) {
+  const st = statusOf(t)
+  const blk = st === 'blocked' ? (t.blockedBy || []).map(k => '#' + k).join('、') : ''
+  return `<div class="card ${selected === w.id + '/' + t.key ? 'sel' : ''}" data-status="${st}"
+    onclick="select('${w.id}','${t.key}')">
+    <div class="cn"><span class="dot ${st}"></span>${t.key}<span class="acc" style="margin-left:auto">${t.acc[0]}/${t.acc[1]}</span></div>
+    <div class="ct">${t.title}</div>
+    <div class="cf"><span class="pill ${st}">${STATUS_LABEL[st]}</span><span class="acc" style="margin-left:auto">${t.assignee || '未认领'}</span></div>
+    ${blk ? `<div class="blk">被 ${blk} 阻塞</div>` : ''}
+  </div>`
+}
+
+function laneTree(w) {
+  const rows = w.tickets.filter(visible)
+  if (!rows.length) return '<div class="hint">这个状态筛选下没有票。</div>'
+  const width = Math.max(260, contentWidth())
+  const dep = depths(w.tickets)
+  const layers = new Map()
+  for (const t of rows) {
+    const d = dep.get(t.key) || 0
+    if (!layers.has(d)) layers.set(d, [])
+    layers.get(d).push(t)
+  }
+  const order = [...layers.keys()].sort((a, b) => a - b)
+
+  let html = `<div class="root" onclick="select('${w.id}','${w.tickets[0].key}')">
+    <div class="cn">工作流</div><div class="rt">${w.name}</div>
+    <div class="rf"><span class="bar"><i style="width:${Math.round(w.tickets.filter(t => statusOf(t) === 'closed').length / w.tickets.length * 100)}%"></i></span>
+      <span class="acc">已完成 ${w.tickets.filter(t => statusOf(t) === 'closed').length}/${w.tickets.length}</span></div></div>`
+
+  let parentXs = [width / 2]        // 根卡中心
+  for (const d of order) {
+    const list = layers.get(d)
+    const { xs } = centers(list.length, width)
+    html += connector(parentXs, xs, width)
+    const cards = list.map(t => cardHtml(w, t)).join('')
+    html += list.length > 1
+      ? `<div class="parallel"><span class="plabel">并行 ${list.length} 张</span><div class="layer">${cards}</div></div>`
+      : `<div class="layer">${cards}</div>`
+    parentXs = xs
+  }
+  return html
+}
+
+function renderCards() {
+  document.getElementById('view-cards').innerHTML = DATA.map(w => {
+    const rows = w.tickets.filter(visible)
+    if (!rows.length) return ''
+    return `<div class="group"><div class="group-head"><span class="name">${w.name}</span><span class="count">${rows.length} / ${w.tickets.length}</span></div>
+      ${rows.map(t => `<div class="row" onclick="select('${w.id}','${t.key}')">
+        <span class="num">${t.key}</span><span class="dot ${statusOf(t)}"></span>
+        <span class="t">${t.title}</span>
+        <span class="meta"><span class="acc">${t.acc[0]}/${t.acc[1]}</span><span class="acc">${t.assignee || '—'}</span></span></div>`).join('')}</div>`
+  }).join('') || '<div class="hint">这个状态筛选下没有票。</div>'
+}
+
+function renderFlow() {
+  document.getElementById('view-flow').innerHTML = DATA.map(w => {
+    const closed = w.tickets.filter(t => statusOf(t) === 'closed').length
+    const pct = Math.round(closed / w.tickets.length * 100)
+    const c = collapsed[w.id] === true
+    return `<div class="lane ${c ? 'collapsed' : ''}">
+      <div class="lane-head" onclick="toggleLane('${w.id}')">
+        <span class="chev">▾</span><span class="name">${w.name}</span>
+        <span class="stat">${closed}/${w.tickets.length}</span>
+        <span class="bar"><i style="width:${pct}%"></i></span>
+      </div>
+      <div class="tree">${laneTree(w)}</div>
+    </div>`
+  }).join('')
+}
+
+function setView(v) {
+  view = v
+  document.querySelectorAll('#seg button').forEach(b => b.classList.toggle('on', b.dataset.view === v))
+  document.getElementById('view-cards').classList.toggle('on', v === 'cards')
+  document.getElementById('view-flow').classList.toggle('on', v === 'flow')
+  render()
+}
+function setWidth(narrow) {
+  document.getElementById('panel').classList.toggle('narrow', narrow)
+  document.getElementById('w-narrow').classList.toggle('on', narrow)
+  document.getElementById('w-wide').classList.toggle('on', !narrow)
+  render()
+}
+function toggleLane(id) { collapsed[id] = !collapsed[id]; renderFlow() }
+function setFilter(f) { filter = f; renderChips(); render() }
+function select(wid, key) {
+  selected = wid + '/' + key
+  const w = DATA.find(x => x.id === wid), t = w.tickets.find(x => x.key === key), st = statusOf(t)
+  const blockers = (t.blockedBy || []).map(k => {
+    const b = allTickets().find(x => x.key === k)
+    return b ? `${b.key} ${b.title}（${STATUS_LABEL[statusOf(b)]}）` : k
+  })
+  const el = document.getElementById('detail'); el.classList.add('on')
+  el.innerHTML = `<div class="dt"><span class="dot ${st}"></span>${w.name} · ${t.key} ${t.title}</div>
+    <div class="dm"><span class="pill ${st}">${STATUS_LABEL[st]}</span><span>验收 ${t.acc[0]}/${t.acc[1]}</span>
+    <span>负责人 ${t.assignee || '未认领'}</span><span>前置 ${blockers.length || '无'}</span></div>
+    ${blockers.length ? `<ul>${blockers.map(b => `<li>被阻塞于：${b}</li>`).join('')}</ul>` : ''}`
+  render()
+}
+function renderChips() {
+  const all = allTickets(), counts = { all: all.length }
+  for (const t of all) counts[statusOf(t)] = (counts[statusOf(t)] || 0) + 1
+  const items = [['all', '全部'], ['ready', '可做'], ['running', '进行中'], ['blocked', '被阻塞'], ['closed', '已关闭']]
+  document.getElementById('chips').innerHTML = items.map(([k, label]) =>
+    `<button class="chip ${filter === k ? 'on' : ''}" onclick="setFilter('${k}')">${label}<span class="n">${counts[k] || 0}</span></button>`).join('')
+}
+function render() { if (view === 'cards') renderCards(); else renderFlow() }
+
+renderChips(); render()
+window.addEventListener('resize', () => render())
+</script>
+</body>
+</html>
